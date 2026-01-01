@@ -1,0 +1,102 @@
+FireOne AI (NSW Fire Safety Auditor Copilot) Mobile App Build
+You are a master AI architect + lead mobile engineer + product designer. Build a production-grade mobile app called FireOne AI with the exact UI style shown in the provided design (white, minimalist, rounded chat bubbles, soft shadows, orange accent, clean enterprise feel) and the same FireOne logo. The app is an expert-level NSW fire safety compliance chatbot for auditors and fire safety professionals. It must ship to iOS (App Store) and Android (Google Play).
+1) Product Goal
+Deliver a fast, trustworthy, compliance-first chat assistant that answers NSW fire safety compliance questions with high precision, citations, and audit-ready structure. It must handle:
+AFSS (Annual Fire Safety Statement) guidance and workflows
+NCC/BCA questions (use “NCC” terminology; BCA legacy references acceptable)
+Australian Standards references (where applicable)
+Essential Fire Safety Measures (EFSM) and inspection/maintenance language
+Practical auditor use-cases (e.g., FRLs, egress, stair pressurisation, detection, EWIS, hydrants/hose reels, smoke control), while staying within scope and providing disclaimers where necessary.
+2) Non-Negotiable UX/UI Requirements (must match the mockups)
+Implement the following UI exactly (do not redesign):
+White background, subtle warm-grey surfaces
+Rounded chat bubbles with soft shadow (low elevation), generous padding
+Left-aligned user messages with a small circular avatar
+Right/assistant messages with a FireOne icon/mark and distinct bubble styling
+A clear header area showing:
+FireOne AI logo + wordmark
+Subtitle: “NSW Fire Safety Auditor Copilot”
+Two or more suggested prompt chips (examples like AFSS, Class 2 essential measures)
+Bottom input bar: rounded text field with placeholder
+“Ask a fire safety compliance question…”
+Send icon: orange paper-plane/arrow button
+Typography: modern sans (SF Pro on iOS / Inter-like on Android) with consistent hierarchy
+Colours: FireOne orange as primary accent; neutral greys for text and borders
+3) Platforms & Stack
+Use a cross-platform stack that achieves native performance:
+Preferred: React Native + TypeScript (Expo if appropriate)
+Alternatives acceptable if justified (Flutter, native Swift/Kotlin)
+Must support:
+iOS 16+ (or best-fit current)
+Android 10+ (or best-fit current)
+App Store & Google Play compliance-ready (privacy policy hooks, permissions minimal)
+4) Core Features (MVP)
+Chat
+Streaming responses (token-by-token) for perceived speed
+Message timestamps optional (off by default)
+Copy-to-clipboard, long-press actions (copy, share, save)
+Conversation memory per thread (threaded chats optional for MVP)
+Trust & Compliance Output
+Every answer must include:
+“What this means” summary (plain English)
+“Relevant references” section (NCC clause references, AS references when applicable)
+“Assumptions” explicitly listed
+“Next steps” checklist for an auditor
+When the assistant is uncertain: clearly label uncertainty and request missing parameters.
+Guardrails
+No hallucinated standards or clauses.
+If citation confidence is low, respond with:
+“I’m not confident enough to cite this—please provide the clause/standard or context.”
+Include a short disclaimer: “Not legal advice. Verify against current NCC/standards and local authority requirements.”
+Prompt Suggestions
+Pre-filled suggested questions (tap inserts into input):
+“What is required for an AFSS in NSW?”
+“What essential measures apply to a Class 2 building?”
+“What FRL is required for [wall type] between [use areas]?”
+“How do I approach stair pressurisation / tenability checks?”
+Offline/Latency Strategy
+Cache the last N conversations locally.
+If offline: show cached content and block send with a clear banner.
+5) Knowledge & Answering Engine
+Use a RAG (Retrieval Augmented Generation) architecture:
+Curated corpus of NSW compliance materials, NCC extracts, internal guidance notes, and safe summaries
+Embed + retrieve with strict filters to prevent irrelevant sources
+Provide citations tied to retrieved chunks (doc name + section)
+Model strategy:
+Use a strong general LLM + toolformer style retrieval
+Enforce structured output via JSON schema internally, render to UI sections
+Evaluation:
+Build a test suite of 100+ NSW fire safety queries with expected citation behaviour and refusal cases.
+6) Architecture (High-Level)
+Mobile client:
+UI + local cache + auth (optional) + analytics events (privacy-safe)
+Backend API:
+Auth (optional for MVP)
+Chat orchestration, streaming
+Retrieval service (vector DB)
+Observability (request IDs, latency, error types)
+Data:
+Vector store (Pinecone/Weaviate/pgvector)
+Document store with versioning (to keep standards updates traceable)
+7) Store Launch Requirements
+App metadata prepared:
+Name: FireOne AI
+Subtitle: NSW Fire Safety Auditor Copilot
+Keywords aligned to “fire safety compliance”, “AFSS”, “NCC”
+Ensure:
+Minimal permissions
+Clear privacy disclosure (no selling data)
+Crash-free baseline and performance metrics
+8) Deliverables Required From You
+Produce, in order:
+Final UI spec (components, spacing, typography, colours) matching the mockups
+Full technical architecture diagram (client/backend/RAG)
+API contracts (request/response schemas)
+Data model for chat + citations + doc versions
+Security & privacy model (threats + mitigations)
+Implementation plan (milestones for iOS + Android release)
+A short demo script and 10 screenshot-ready example conversations
+9) Constraints
+Keep everything enterprise professional and regulator-safe.
+Maintain strict correctness: no invented clauses/standards.
+Must look and feel like the provided FireOne interface (no creative deviation).
