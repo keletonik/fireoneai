@@ -1,0 +1,85 @@
+Copy and paste this into Replit Agent:
+I need to add several new features to my FyreOne AI app. Please implement the following:
+
+## 1. COLLAPSIBLE SIDEBAR (Desktop & Mobile)
+
+Create a sidebar similar to ChatGPT/Claude with:
+
+**Structure:**
+- Hamburger menu icon in header to toggle sidebar on mobile
+- Sidebar slides in from left, overlays content on mobile
+- On desktop (768px+), sidebar is always visible but can be collapsed to icons-only
+
+**Sidebar Sections:**
+- "New Chat" button at top (orange accent #f97316)
+- "Search" - opens search modal for conversations
+- Collapsible "Favorites" section - starred/bookmarked chats
+- Collapsible "Recent" section - last 10 conversations
+- Collapsible "Projects" section - user-created folders that group chats
+- User profile/settings at bottom
+
+**Conversations List:**
+- Each conversation shows: title (auto-generated from first message), date, preview snippet
+- Right-click or long-press shows context menu: Rename, Star/Favorite, Move to Project, Delete
+- Clicking a conversation loads it in the main chat area
+
+**Projects:**
+- Users can create/rename/delete projects
+- Projects act as folders for organizing conversations
+- Each project can have a "Knowledge Base" section (files/documents for RAG context)
+- Drag conversations into projects
+
+## 2. EXPORT TO MARKDOWN
+
+Add export functionality:
+- In chat header or menu, add "Export" button
+- Export options: "Export as Markdown (.md)", "Export as PDF", "Copy to Clipboard"
+- Markdown export should preserve:
+  - Message roles (User: / Assistant:)
+  - Code blocks with language tags
+  - Lists, headers, formatting
+- File downloads with naming convention: `fyreone-{topic}-{date}.md`
+
+## 3. SNIPPET NOTEBOOK FEATURE
+
+This is a key feature - users can save specific response blocks (not whole conversations) to their notebook:
+
+**In Chat Interface:**
+- Each assistant response block gets action buttons: 👍 👎 📋 (copy) 📌 (save to notebook)
+- Clicking 📌 opens a modal:
+  - Shows preview of the snippet
+  - Dropdown to select which Notebook to save to (or create new)
+  - Optional: add tags, notes
+  - "Save" button
+
+**Notebook System:**
+- Users can create multiple notebooks (e.g., "Fire Door Specs", "AFSS Requirements", "Quick Reference")
+- Each notebook is a collection of saved snippets
+- Notebooks view accessible from sidebar
+- Within a notebook:
+  - List of saved snippets with source conversation link
+  - Ability to reorder, edit notes, delete snippets
+  - Export entire notebook as .md
+  - Option to "Use as Knowledge Base" for a Project (converts snippets to RAG context)
+
+**Database Schema Additions:**
+- `notebooks` table: id, user_id, name, created_at, updated_at
+- `snippets` table: id, notebook_id, conversation_id, message_id, content, notes, tags, created_at
+- Relation: notebooks -> snippets (one-to-many)
+
+## 4. UI/UX REQUIREMENTS
+
+- Match existing design: light theme, orange accent (#f97316), clean minimal style
+- Smooth animations for sidebar toggle (300ms ease-in-out)
+- Mobile-first responsive design
+- Keep the existing topic buttons on the welcome screen
+- Preserve the existing chat input styling (the orange gradient bar at bottom)
+
+## Technical Notes:
+- Use the existing Drizzle ORM setup for new tables
+- Use TanStack Query for data fetching (already in project)
+- Use shadcn/ui components where possible
+- Sidebar state should persist (localStorage)
+- Implement optimistic updates for saving snippets
+
+Please implement these features one section at a time, starting with the sidebar, then export, then the notebook system.

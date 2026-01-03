@@ -71,11 +71,17 @@ Preferred communication style: Simple, everyday language.
 ### UI/UX Polish Improvements
 - **Quick Prompt Chips**: Welcome screen now displays 4 quick prompt chips (AFSS, Fire doors, Egress, Sprinklers) that pre-fill the input field
 - **User Message Bubbles**: Changed from bright orange to warm grey/tan (#E8DDD4 light, #3D3530 dark) for better visual balance
-- **Message Action Menu**: Long-press on messages shows a modal overlay with Copy and Bookmark actions
+- **Message Action Menu**: Long-press on messages shows a modal overlay with Copy, Bookmark, Save to Notebook, and Feedback actions
+- **Thumbs Up/Down Feedback**: Assistant messages show "Helpful" and "Not helpful" feedback buttons (only for persisted messages)
 - **Frosted Glass Input Bar**: InputComposer uses BlurView with tinted background for modern iOS-style glass effect
 - **Collapsible Settings Sections**: AI Personalization, Document Library, Support, and Legal sections now collapse/expand
 - **Accessibility Labels**: All header buttons and interactive elements have accessibility labels and hints
 - **Simplified Header**: 4-button design (new chat, search, help, settings) for cleaner mobile experience
+
+### Technical Improvements (January 2026)
+- **Expo SDK 54 Compatibility**: Fixed expo-file-system imports to use named exports (`documentDirectory`, `writeAsStringAsync`) instead of deprecated namespace properties
+- **Temporary Message ID Protection**: Messages created with `Date.now()` IDs (which exceed PostgreSQL's 32-bit integer limit) are now properly handled - feedback, bookmark, and save actions only appear for persisted database messages (id <= 2147483647)
+- **API Response Validation**: Feedback and favourite API calls now properly check `response.ok` and only update UI state on success
 
 ## External Dependencies
 

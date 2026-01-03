@@ -1,0 +1,1043 @@
+# FyreOne AI - Complete Implementation Package for Replit
+
+This document contains EVERYTHING you need. Copy and paste the entire thing into Replit Agent.
+
+---
+
+## OVERVIEW
+
+I need you to implement a complete UI refresh for my FyreOne AI fire safety compliance mobile app. I'm providing you with all the component code below — please integrate these into my existing React + TypeScript + Tailwind project.
+
+**Tech Stack:**
+- React + TypeScript + Vite
+- Tailwind CSS + shadcn/ui
+- wouter for routing
+- TanStack Query
+- Node.js + Express backend
+- PostgreSQL + Drizzle ORM
+
+**Brand Colors (use consistently):**
+- Primary Orange: #f97316 (orange-500)
+- Primary Hover: #ea580c (orange-600)
+- Light BG: white / #f8fafc (slate-50)
+- Dark BG: #020617 (slate-950)
+- Dark Text: #1e293b (slate-800)
+- Light Text: #f8fafc (slate-50)
+- Muted: #64748b (slate-500)
+- ALL toggles when ON: orange-500 (not green)
+
+---
+
+## PHASE 1: FYREONE WORDMARK LOGO
+
+Create this file at `client/src/components/FyreOneWordmark.tsx`:
+
+```tsx
+interface FyreOneWordmarkProps {
+  height?: number;
+  isDark?: boolean;
+  className?: string;
+}
+
+export function FyreOneWordmark({ height = 32, isDark = false, className = '' }: FyreOneWordmarkProps) {
+  // Generate unique IDs for this instance to avoid SVG conflicts
+  const gradientId = `fyreGradient-${Math.random().toString(36).substr(2, 9)}`;
+  
+  return (
+    <svg viewBox="0 0 160 32" fill="none" className={className} style={{ height, width: 'auto' }}>
+      <defs>
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#fdba74" />
+          <stop offset="40%" stopColor="#fb923c" />
+          <stop offset="100%" stopColor="#ea580c" />
+        </linearGradient>
+      </defs>
+      
+      {/* "Fyre" - gradient orange */}
+      <text 
+        x="0" 
+        y="24" 
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+        fontSize="26" 
+        fontWeight="700"
+        fill={`url(#${gradientId})`}
+      >
+        Fyre
+      </text>
+      
+      {/* "One" - adapts to light/dark */}
+      <text 
+        x="60" 
+        y="24" 
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+        fontSize="26" 
+        fontWeight="700"
+        fill={isDark ? "#f8fafc" : "#1e293b"}
+      >
+        One
+      </text>
+      
+      {/* "AI" badge */}
+      <rect 
+        x="122" 
+        y="8" 
+        width="28" 
+        height="16" 
+        rx="4" 
+        fill={isDark ? "#334155" : "#f1f5f9"} 
+        stroke={isDark ? "#475569" : "#e2e8f0"} 
+        strokeWidth="1" 
+      />
+      <text 
+        x="136" 
+        y="20" 
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+        fontSize="10" 
+        fontWeight="600"
+        fill={isDark ? "#94a3b8" : "#64748b"}
+        textAnchor="middle"
+      >
+        AI
+      </text>
+    </svg>
+  );
+}
+
+export default FyreOneWordmark;
+```
+
+**Usage:**
+```tsx
+<FyreOneWordmark height={28} isDark={false} />  // Light mode
+<FyreOneWordmark height={28} isDark={true} />   // Dark mode
+```
+
+---
+
+## PHASE 2: FIRE SAFETY GRID ANIMATION (Login Background)
+
+Create this file at `client/src/components/FireSafetyGrid.tsx`:
+
+```tsx
+import { useEffect, useRef } from 'react';
+
+interface FireSafetyGridProps {
+  isDark?: boolean;
+  className?: string;
+}
+
+export function FireSafetyGrid({ isDark = false, className = '' }: FireSafetyGridProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = canvas.offsetWidth;
+    let height = canvas.offsetHeight;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+
+    // Types
+    interface Node {
+      x: number;
+      y: number;
+      type: 'sprinkler' | 'alarm';
+      size: number;
+      pulsePhase: number;
+      isActive: boolean;
+      activeTimer: number;
+      statusBlink: number;
+    }
+
+    interface Connection {
+      from: number;
+      to: number;
+      dist: number;
+    }
+
+    interface Signal {
+      id: number;
+      fromNode: number;
+      toNode: number;
+      progress: number;
+      speed: number;
+      type: 'alert' | 'check';
+    }
+
+    interface Spray {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      life: number;
+      size: number;
+    }
+
+    // Create nodes
+    const nodeCount = Math.floor((width * height) / 20000);
+    const nodes: Node[] = [];
+
+    for (let i = 0; i < nodeCount; i++) {
+      const type = Math.random() > 0.5 ? 'sprinkler' : 'alarm';
+      nodes.push({
+        x: 50 + Math.random() * (width - 100),
+        y: 50 + Math.random() * (height - 100),
+        type,
+        size: type === 'sprinkler' ? 8 : 6,
+        pulsePhase: Math.random() * Math.PI * 2,
+        isActive: false,
+        activeTimer: 0,
+        statusBlink: Math.random() * Math.PI * 2,
+      });
+    }
+
+    // Find connections
+    const maxDistance = 180;
+    const connections: Connection[] = [];
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dy = nodes[i].y - nodes[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < maxDistance) {
+          connections.push({ from: i, to: j, dist });
+        }
+      }
+    }
+
+    const signals: Signal[] = [];
+    let signalId = 0;
+    const sprays: Spray[] = [];
+
+    const spawnSignal = () => {
+      if (connections.length === 0) return;
+      const conn = connections[Math.floor(Math.random() * connections.length)];
+      const direction = Math.random() > 0.5;
+      signals.push({
+        id: signalId++,
+        fromNode: direction ? conn.from : conn.to,
+        toNode: direction ? conn.to : conn.from,
+        progress: 0,
+        speed: 0.008 + Math.random() * 0.006,
+        type: Math.random() > 0.7 ? 'alert' : 'check',
+      });
+    };
+
+    const activateSprinkler = (nodeIndex: number) => {
+      const node = nodes[nodeIndex];
+      if (node.type !== 'sprinkler' || node.isActive) return;
+      node.isActive = true;
+      node.activeTimer = 180;
+    };
+
+    // Draw sprinkler head
+    const drawSprinkler = (x: number, y: number, size: number, isActive: boolean, phase: number) => {
+      const pulse = Math.sin(phase) * 0.1 + 1;
+
+      ctx.beginPath();
+      ctx.arc(x, y - size * 0.3, size * 0.8, Math.PI, 0);
+      ctx.fillStyle = isDark ? '#475569' : '#94a3b8';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(x - size * 0.3, y - size * 0.3);
+      ctx.lineTo(x - size * 0.5, y + size * 0.5);
+      ctx.lineTo(x + size * 0.5, y + size * 0.5);
+      ctx.lineTo(x + size * 0.3, y - size * 0.3);
+      ctx.closePath();
+      ctx.fillStyle = isDark ? '#64748b' : '#cbd5e1';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.ellipse(x, y + size * 0.6, size * 0.7, size * 0.2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? (isDark ? '#f97316' : '#ea580c') : (isDark ? '#94a3b8' : '#64748b');
+      ctx.fill();
+
+      const ledGlow = Math.sin(phase * 2) * 0.3 + 0.7;
+      ctx.beginPath();
+      ctx.arc(x, y - size * 0.1, size * 0.15 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? `rgba(239, 68, 68, ${ledGlow})` : `rgba(34, 197, 94, ${ledGlow * 0.7})`;
+      ctx.fill();
+
+      if (isActive) {
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, size * 3);
+        gradient.addColorStop(0, 'rgba(249, 115, 22, 0.3)');
+        gradient.addColorStop(1, 'rgba(249, 115, 22, 0)');
+        ctx.beginPath();
+        ctx.arc(x, y, size * 3, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
+    };
+
+    // Draw smoke alarm
+    const drawAlarm = (x: number, y: number, size: number, phase: number) => {
+      const pulse = Math.sin(phase) * 0.05 + 1;
+
+      ctx.beginPath();
+      ctx.arc(x, y, size * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = isDark ? '#475569' : '#e2e8f0';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.7, 0, Math.PI * 2);
+      ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const hx = x + Math.cos(angle) * size * 0.4;
+        const hy = y + Math.sin(angle) * size * 0.4;
+        ctx.beginPath();
+        ctx.arc(hx, hy, size * 0.08, 0, Math.PI * 2);
+        ctx.fillStyle = isDark ? '#1e293b' : '#94a3b8';
+        ctx.fill();
+      }
+
+      const ledGlow = Math.sin(phase * 1.5) * 0.4 + 0.6;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.15, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(34, 197, 94, ${ledGlow})`;
+      ctx.fill();
+    };
+
+    // Animation loop
+    const animate = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      // Update nodes
+      nodes.forEach((node) => {
+        node.pulsePhase += 0.03;
+        node.statusBlink += 0.05;
+
+        if (node.isActive) {
+          node.activeTimer--;
+          if (node.activeTimer <= 0) node.isActive = false;
+
+          if (Math.random() < 0.4) {
+            const angle = Math.random() * Math.PI;
+            const speed = 1 + Math.random() * 2;
+            sprays.push({
+              x: node.x + (Math.random() - 0.5) * 10,
+              y: node.y + node.size,
+              vx: Math.cos(angle + Math.PI * 0.25) * speed * (Math.random() > 0.5 ? 1 : -1),
+              vy: Math.sin(angle) * speed + 1,
+              life: 1,
+              size: 1.5 + Math.random() * 2,
+            });
+          }
+        }
+      });
+
+      // Draw connections
+      connections.forEach((conn) => {
+        const from = nodes[conn.from];
+        const to = nodes[conn.to];
+        const opacity = (1 - conn.dist / maxDistance) * (isDark ? 0.15 : 0.12);
+
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.strokeStyle = isDark ? `rgba(148, 163, 184, ${opacity})` : `rgba(100, 116, 139, ${opacity})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Draw nodes
+      nodes.forEach((node) => {
+        if (node.type === 'sprinkler') {
+          drawSprinkler(node.x, node.y, node.size, node.isActive, node.pulsePhase);
+        } else {
+          drawAlarm(node.x, node.y, node.size, node.statusBlink);
+        }
+      });
+
+      // Draw sprays
+      for (let i = sprays.length - 1; i >= 0; i--) {
+        const spray = sprays[i];
+        spray.x += spray.vx;
+        spray.y += spray.vy;
+        spray.vy += 0.1;
+        spray.life -= 0.025;
+
+        if (spray.life <= 0 || spray.y > height) {
+          sprays.splice(i, 1);
+          continue;
+        }
+
+        const gradient = ctx.createRadialGradient(spray.x, spray.y, 0, spray.x, spray.y, spray.size * 2);
+        gradient.addColorStop(0, `rgba(147, 197, 253, ${spray.life * 0.8})`);
+        gradient.addColorStop(0.5, `rgba(59, 130, 246, ${spray.life * 0.5})`);
+        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+
+        ctx.beginPath();
+        ctx.arc(spray.x, spray.y, spray.size * 2, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
+
+      // Spawn signals
+      if (Math.random() < 0.02 && signals.length < 6) spawnSignal();
+
+      // Random sprinkler activation
+      if (Math.random() < 0.002) {
+        const sprinklerNodes = nodes.map((n, i) => ({ node: n, index: i })).filter((n) => n.node.type === 'sprinkler' && !n.node.isActive);
+        if (sprinklerNodes.length > 0) {
+          const random = sprinklerNodes[Math.floor(Math.random() * sprinklerNodes.length)];
+          activateSprinkler(random.index);
+        }
+      }
+
+      // Draw signals
+      for (let i = signals.length - 1; i >= 0; i--) {
+        const signal = signals[i];
+        signal.progress += signal.speed;
+
+        if (signal.progress >= 1) {
+          signals.splice(i, 1);
+          continue;
+        }
+
+        const from = nodes[signal.fromNode];
+        const to = nodes[signal.toNode];
+        const x = from.x + (to.x - from.x) * signal.progress;
+        const y = from.y + (to.y - from.y) * signal.progress;
+
+        const intensity = Math.sin(signal.progress * Math.PI);
+        const signalColor = signal.type === 'alert' ? { r: 249, g: 115, b: 22 } : { r: 34, g: 197, b: 94 };
+
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10);
+        gradient.addColorStop(0, `rgba(${signalColor.r}, ${signalColor.g}, ${signalColor.b}, ${intensity * 0.9})`);
+        gradient.addColorStop(0.5, `rgba(${signalColor.r}, ${signalColor.g}, ${signalColor.b}, ${intensity * 0.4})`);
+        gradient.addColorStop(1, `rgba(${signalColor.r}, ${signalColor.g}, ${signalColor.b}, 0)`);
+
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${intensity})`;
+        ctx.fill();
+      }
+
+      if (sprays.length > 100) sprays.splice(0, 20);
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    const handleResize = () => {
+      width = canvas.offsetWidth;
+      height = canvas.offsetHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isDark]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={`absolute inset-0 w-full h-full pointer-events-none ${className}`}
+      style={{ opacity: isDark ? 0.7 : 0.5 }}
+    />
+  );
+}
+
+export default FireSafetyGrid;
+```
+
+---
+
+## PHASE 3: FIRE PANEL DIAGNOSTIC LOADER
+
+Create this file at `client/src/components/FirePanelLoader.tsx`:
+
+```tsx
+import { useState, useEffect } from 'react';
+import { FyreOneWordmark } from './FyreOneWordmark';
+
+interface FirePanelLoaderProps {
+  onComplete?: () => void;
+}
+
+export function FirePanelLoader({ onComplete }: FirePanelLoaderProps) {
+  const [blocks, setBlocks] = useState<('idle' | 'checking' | 'checked')[]>(Array(12).fill('idle'));
+  const [phase, setPhase] = useState<'checking' | 'complete' | 'fading'>('checking');
+  const [opacity, setOpacity] = useState(1);
+
+  useEffect(() => {
+    let currentBlock = 0;
+    const checkInterval = setInterval(() => {
+      if (currentBlock < 12) {
+        setBlocks((prev) => {
+          const newBlocks = [...prev];
+          if (currentBlock > 0) newBlocks[currentBlock - 1] = 'checked';
+          newBlocks[currentBlock] = 'checking';
+          return newBlocks;
+        });
+        currentBlock++;
+      } else {
+        setBlocks((prev) => prev.map(() => 'checked'));
+        setPhase('complete');
+        clearInterval(checkInterval);
+
+        setTimeout(() => {
+          setPhase('fading');
+          let fadeOpacity = 1;
+          const fadeInterval = setInterval(() => {
+            fadeOpacity -= 0.05;
+            setOpacity(fadeOpacity);
+            if (fadeOpacity <= 0) {
+              clearInterval(fadeInterval);
+              onComplete?.();
+            }
+          }, 30);
+        }, 400);
+      }
+    }, 150);
+
+    return () => clearInterval(checkInterval);
+  }, [onComplete]);
+
+  const getBlockStyle = (status: string) => {
+    switch (status) {
+      case 'checking':
+        return 'bg-orange-400 animate-pulse shadow-lg shadow-orange-400/50';
+      case 'checked':
+        return 'bg-orange-500';
+      default:
+        return 'bg-slate-200';
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50"
+      style={{ opacity }}
+    >
+      <div className="relative">
+        {/* Panel frame */}
+        <div className="w-72 bg-slate-100 rounded-2xl p-6 border-2 border-slate-200 shadow-xl">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+            <span className="text-sm font-semibold text-slate-700">SYSTEM CHECK</span>
+            <div
+              className={`w-2 h-2 rounded-full ${
+                phase === 'complete' ? 'bg-green-500' : 'bg-orange-400 animate-pulse'
+              }`}
+            />
+          </div>
+
+          {/* Block grid */}
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            {blocks.map((status, i) => (
+              <div
+                key={i}
+                className={`aspect-square rounded-md transition-all duration-200 ${getBlockStyle(status)}`}
+              />
+            ))}
+          </div>
+
+          {/* Status */}
+          <p className="text-center text-xs text-slate-500 font-medium">
+            {phase === 'complete' ? 'ALL SYSTEMS OPERATIONAL' : 'INITIALIZING...'}
+          </p>
+        </div>
+
+        {/* Corner brackets */}
+        <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-orange-400 rounded-tl" />
+        <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-orange-400 rounded-tr" />
+        <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-orange-400 rounded-bl" />
+        <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-orange-400 rounded-br" />
+      </div>
+
+      {/* Wordmark */}
+      <div className="mt-8">
+        <FyreOneWordmark height={28} isDark={false} />
+      </div>
+    </div>
+  );
+}
+
+export default FirePanelLoader;
+```
+
+---
+
+## PHASE 4: LOGIN PAGE (DARK THEME)
+
+Create this file at `client/src/components/FyreOneLoginDark.tsx`:
+
+```tsx
+import { useState, useEffect, FormEvent } from 'react';
+import { FireSafetyGrid } from './FireSafetyGrid';
+import { FyreOneWordmark } from './FyreOneWordmark';
+
+interface FyreOneLoginDarkProps {
+  onSignIn?: (email: string, password: string) => void;
+  onSignUp?: () => void;
+  isLoading?: boolean;
+  error?: string;
+}
+
+export function FyreOneLoginDark({ onSignIn, onSignUp, isLoading = false, error }: FyreOneLoginDarkProps) {
+  const [mounted, setMounted] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  useEffect(() => setMounted(true), []);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    onSignIn?.(email, password);
+  };
+
+  return (
+    <div className="relative overflow-hidden bg-slate-950 min-h-screen flex flex-col">
+      <FireSafetyGrid isDark={true} />
+
+      {/* Gradient overlays */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `
+            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(249, 115, 22, 0.12), transparent),
+            radial-gradient(ellipse 60% 40% at 80% 80%, rgba(249, 115, 22, 0.08), transparent)
+          `,
+        }}
+      />
+
+      <div className="relative flex-1 flex flex-col items-center justify-center z-10">
+        <div className="max-w-md mx-auto px-6 py-16 text-center w-full">
+          {/* Badge */}
+          <div
+            className={`inline-flex items-center gap-2 px-3 py-1.5 mb-6 rounded-full bg-orange-500/10 border border-orange-500/20 backdrop-blur-sm transition-all duration-700 ${
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+            <span className="text-xs font-medium text-orange-400 tracking-wide uppercase">
+              AI-Powered Compliance
+            </span>
+          </div>
+
+          {/* Logo */}
+          <div
+            className={`flex justify-center mb-4 transition-all duration-700 delay-100 ${
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            <FyreOneWordmark height={40} isDark={true} />
+          </div>
+
+          {/* Tagline */}
+          <p
+            className={`text-lg text-slate-400 max-w-sm mx-auto mb-10 transition-all duration-700 delay-200 ${
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            Your expert assistant for NSW fire safety compliance
+          </p>
+
+          {/* Form */}
+          <div
+            className={`max-w-sm mx-auto transition-all duration-700 delay-300 ${
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            <form onSubmit={handleSubmit}>
+              <div className="bg-slate-900/70 backdrop-blur-md rounded-2xl border border-slate-800/80 p-6 shadow-2xl">
+                {error && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-900/30 border border-red-800 text-red-400 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <input
+                    type="email"
+                    placeholder="Email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all disabled:opacity-50"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-orange-500/30 disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Signing in...
+                      </span>
+                    ) : (
+                      'Sign in'
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-center text-sm text-slate-500 mt-4">
+                  Don't have an account?{' '}
+                  <button type="button" onClick={onSignUp} className="text-orange-400 hover:text-orange-300 transition-colors">
+                    Sign up
+                  </button>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div
+        className={`relative pb-8 text-center z-10 transition-all duration-700 delay-500 ${
+          mounted ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <a
+          href="https://mentaris.io"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          <span>Powered by</span>
+          <span className="font-semibold tracking-wider">
+            <span className="text-slate-500">MENT</span>
+            <span className="text-cyan-400">A</span>
+            <span className="text-slate-500">RIS</span>
+          </span>
+        </a>
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-500/40 to-transparent" />
+    </div>
+  );
+}
+
+export default FyreOneLoginDark;
+```
+
+---
+
+## PHASE 5: LOGIN PAGE (LIGHT THEME)
+
+Create this file at `client/src/components/FyreOneLoginLight.tsx`:
+
+```tsx
+import { useState, useEffect, FormEvent } from 'react';
+import { FireSafetyGrid } from './FireSafetyGrid';
+import { FyreOneWordmark } from './FyreOneWordmark';
+
+interface FyreOneLoginLightProps {
+  onSignIn?: (email: string, password: string) => void;
+  onSignUp?: () => void;
+  isLoading?: boolean;
+  error?: string;
+}
+
+export function FyreOneLoginLight({ onSignIn, onSignUp, isLoading = false, error }: FyreOneLoginLightProps) {
+  const [mounted, setMounted] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  useEffect(() => setMounted(true), []);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    onSignIn?.(email, password);
+  };
+
+  return (
+    <div className="relative bg-gradient-to-b from-slate-50 to-white min-h-screen flex flex-col overflow-hidden">
+      <FireSafetyGrid isDark={false} />
+      
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-80 z-10" />
+
+      <div className="relative flex-1 flex flex-col items-center justify-center z-10">
+        <div className="max-w-sm mx-auto px-6 py-14 text-center w-full">
+          {/* Logo */}
+          <div
+            className={`flex justify-center mb-2 transition-all duration-500 delay-100 ${
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+            }`}
+          >
+            <FyreOneWordmark height={36} isDark={false} />
+          </div>
+
+          {/* Subtitle */}
+          <p
+            className={`text-slate-500 text-base mb-8 transition-all duration-500 delay-200 ${
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+            }`}
+          >
+            NSW Fire Safety Compliance
+          </p>
+
+          {/* Form */}
+          <div
+            className={`transition-all duration-500 delay-300 ${
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+            }`}
+          >
+            <form onSubmit={handleSubmit}>
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl shadow-slate-200/50 border border-slate-100">
+                {error && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-shadow disabled:opacity-50"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-shadow disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors shadow-lg shadow-orange-500/25 disabled:opacity-50"
+                  >
+                    {isLoading ? 'Signing in...' : 'Sign in'}
+                  </button>
+                </div>
+
+                <p className="text-sm text-slate-400 mt-4">
+                  New here?{' '}
+                  <button type="button" onClick={onSignUp} className="text-orange-500 hover:underline">
+                    Create account
+                  </button>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div
+        className={`relative pb-6 text-center z-10 transition-all duration-500 delay-500 ${
+          mounted ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <a
+          href="https://mentaris.io"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          <span>Powered by</span>
+          <span className="font-semibold tracking-wider">
+            <span className="text-slate-500">MENT</span>
+            <span className="text-cyan-500">A</span>
+            <span className="text-slate-500">RIS</span>
+          </span>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+export default FyreOneLoginLight;
+```
+
+---
+
+## PHASE 6: COMPONENT INDEX FILE
+
+Create `client/src/components/fyreone/index.ts`:
+
+```tsx
+export { FyreOneWordmark } from './FyreOneWordmark';
+export { FireSafetyGrid } from './FireSafetyGrid';
+export { FirePanelLoader } from './FirePanelLoader';
+export { FyreOneLoginDark } from './FyreOneLoginDark';
+export { FyreOneLoginLight } from './FyreOneLoginLight';
+```
+
+---
+
+## PHASE 7: INTEGRATION
+
+Now integrate these components into the app:
+
+### 7.1 Update the Login Route
+
+Replace the current login page with the dark theme version:
+
+```tsx
+import { FyreOneLoginDark } from '@/components/fyreone';
+
+function LoginPage() {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSignIn = async (email: string, password: string) => {
+    setIsLoading(true);
+    setError('');
+    try {
+      // Your auth logic here
+      await login(email, password);
+      navigate('/');
+    } catch (err) {
+      setError('Invalid credentials');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <FyreOneLoginDark
+      onSignIn={handleSignIn}
+      onSignUp={() => navigate('/signup')}
+      isLoading={isLoading}
+      error={error}
+    />
+  );
+}
+```
+
+### 7.2 Add Loading Screen After Login
+
+After successful authentication, show the FirePanelLoader before navigating to main:
+
+```tsx
+const [showLoader, setShowLoader] = useState(false);
+
+const handleSignIn = async (email: string, password: string) => {
+  // ... auth logic
+  setShowLoader(true);
+};
+
+if (showLoader) {
+  return <FirePanelLoader onComplete={() => navigate('/')} />;
+}
+```
+
+### 7.3 Update Main App Header
+
+Replace the current "FYREONE" text with the wordmark:
+
+```tsx
+import { FyreOneWordmark } from '@/components/fyreone';
+
+// In your header component:
+<header className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+  <button onClick={openSidebar} className="p-2">
+    <Menu className="w-5 h-5 text-slate-600" />
+  </button>
+  
+  <FyreOneWordmark height={28} isDark={false} />
+  
+  <div className="flex items-center gap-1">
+    <button className="p-2"><Search className="w-5 h-5" /></button>
+    <button className="p-2"><Settings className="w-5 h-5" /></button>
+  </div>
+</header>
+```
+
+### 7.4 Remove Animation Banner from Main Screen
+
+The current "touch & drag to chase" animation banner should be removed. The welcome screen should just show:
+- Welcome text
+- Topic buttons
+- Help hint
+- Input bar at bottom
+
+No animation needed on the main screen.
+
+---
+
+## PHASE 8: SETTINGS PAGE COLOR FIX
+
+Update all toggle switches and icons in Settings to use orange instead of green/teal:
+
+**Toggle component - always orange when ON:**
+```tsx
+<button
+  onClick={() => onChange(!value)}
+  className={`relative w-11 h-6 rounded-full transition-colors ${
+    value ? 'bg-orange-500' : 'bg-slate-200'
+  }`}
+>
+  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+    value ? 'left-6' : 'left-1'
+  }`} />
+</button>
+```
+
+**Section icons - all orange on orange-50:**
+```tsx
+<div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
+  <Bell className="w-5 h-5 text-orange-500" />
+</div>
+```
+
+---
+
+## SUMMARY
+
+After implementation you should have:
+
+1. ✅ FyreOneWordmark - "FyreOne [AI]" logo that adapts to light/dark
+2. ✅ FireSafetyGrid - Animated sprinkler/alarm network for login background
+3. ✅ FirePanelLoader - System check loading screen between login and main app
+4. ✅ FyreOneLoginDark - Premium dark login page
+5. ✅ FyreOneLoginLight - Clean light login page
+6. ✅ Updated header using wordmark instead of plain text
+7. ✅ Main screen without animation banner
+8. ✅ Settings with consistent orange colors
+
+Please implement these in order, testing each phase before moving to the next. Let me know when Phase 1 (FyreOneWordmark) is complete!

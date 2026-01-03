@@ -19,6 +19,8 @@ export const conversations = pgTable("conversations", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  isStarred: boolean("is_starred").default(false),
+  lastMessageAt: timestamp("last_message_at").default(sql`CURRENT_TIMESTAMP`),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -194,6 +196,58 @@ export const systemMetrics = pgTable("system_metrics", {
   recordedAtIdx: index("metrics_recorded_at_idx").on(table.recordedAt),
 }));
 
+// Projects - folders for organizing conversations
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#f97316"), // Default orange
+  icon: text("icon").default("folder"),
+  isExpanded: boolean("is_expanded").default(true),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Notebooks - collections of saved snippets
+export const notebooks = pgTable("notebooks", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#f97316"),
+  icon: text("icon").default("book"),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// Snippets - saved response blocks from conversations
+export const snippets = pgTable("snippets", {
+  id: serial("id").primaryKey(),
+  notebookId: integer("notebook_id").references(() => notebooks.id, { onDelete: "cascade" }),
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+  messageId: integer("message_id").references(() => messages.id, { onDelete: "set null" }),
+  content: text("content").notNull(),
+  title: text("title"),
+  notes: text("notes"),
+  tags: jsonb("tags"), // Array of tag strings
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  notebookIdx: index("snippets_notebook_idx").on(table.notebookId),
+}));
+
+// Conversation-Project mapping
+export const conversationProjects = pgTable("conversation_projects", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "cascade" }),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -274,6 +328,29 @@ export const insertSystemMetricSchema = createInsertSchema(systemMetrics).omit({
   recordedAt: true,
 });
 
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertNotebookSchema = createInsertSchema(notebooks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSnippetSchema = createInsertSchema(snippets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertConversationProjectSchema = createInsertSchema(conversationProjects).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Core types
 export type User = typeof users.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;
@@ -306,3 +383,13 @@ export type IngestionJob = typeof ingestionJobs.$inferSelect;
 export type InsertIngestionJob = z.infer<typeof insertIngestionJobSchema>;
 export type SystemMetric = typeof systemMetrics.$inferSelect;
 export type InsertSystemMetric = z.infer<typeof insertSystemMetricSchema>;
+
+// Project and notebook types
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type Notebook = typeof notebooks.$inferSelect;
+export type InsertNotebook = z.infer<typeof insertNotebookSchema>;
+export type Snippet = typeof snippets.$inferSelect;
+export type InsertSnippet = z.infer<typeof insertSnippetSchema>;
+export type ConversationProject = typeof conversationProjects.$inferSelect;
+export type InsertConversationProject = z.infer<typeof insertConversationProjectSchema>;

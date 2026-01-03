@@ -1,0 +1,337 @@
+# FyreOne AI — Complete UI Audit & Fix
+
+**STOP. READ THIS ENTIRE MESSAGE BEFORE WRITING ANY CODE.**
+
+This is a comprehensive audit of the FyreOne app. Multiple UI changes were requested but not properly implemented, and there is a persistent input bug. I need you to systematically address EVERY issue below.
+
+Do not tell me something is "done" or "should work now" until you have:
+1. Made the actual code change
+2. Verified it visually or through testing
+3. Confirmed the fix doesn't break anything else
+
+---
+
+## PART A: CRITICAL BUGS
+
+### BUG 1: Text Input Loses Focus Immediately
+
+**The Problem:**
+When the user taps the chat input field, it immediately loses focus / "snaps out". The keyboard may briefly appear then disappear. This has been a recurring bug that keeps coming back.
+
+**Root Cause Investigation:**
+Check for these common causes:
+
+1. **Re-renders on keyboard show** — A parent component's state changes when keyboard opens, causing the TextInput to remount
+2. **KeyboardAvoidingView misconfigured** — Layout shifts incorrectly
+3. **ScrollView stealing focus** — Missing `keyboardShouldPersistTaps`
+4. **Conditional rendering** — Input being unmounted/remounted based on state
+
+**Required Fixes:**
+
+```tsx
+// 1. KeyboardAvoidingView must be configured correctly
+<KeyboardAvoidingView 
+  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+  style={{ flex: 1 }}
+>
+
+// 2. Any ScrollView containing or near the input needs this
+<ScrollView 
+  keyboardShouldPersistTaps="handled"
+  keyboardDismissMode="interactive"
+>
+
+// 3. Use stable callback references to prevent re-renders
+const handleChangeText = useCallback((text: string) => {
+  setInputText(text);
+}, []);
+
+const handleSubmit = useCallback(() => {
+  // submit logic
+}, [/* only necessary dependencies */]);
+
+// 4. Never conditionally render the input — hide it instead
+// BAD:
+{isReady && <TextInput />}
+
+// GOOD:
+<TextInput style={!isReady && { display: 'none' }} />
+
+// 5. If using FlatList for messages, add these props
+<FlatList
+  keyboardShouldPersistTaps="handled"
+  keyboardDismissMode="interactive"
+  removeClippedSubviews={false}
+/>
+```
+
+**Verification:** After fixing, tap the input 10 times rapidly. It should maintain focus every single time.
+
+---
+
+## PART B: BRANDING & HEADER FIXES
+
+### ISSUE 1: Replace "FYREONE" Text with Wordmark Component
+
+**Current State:** Plain text showing "FYREONE" with orange "FYRE" and dark "ONE"
+
+**Required State:** Use the `FyreOneWordmark` SVG component which displays "FyreOne" with gradient and an [AI] badge
+
+**Screens to Update:**
+- HomeScreen / ChatScreen header
+- SettingsScreen header  
+- Any other screen with the app name in header
+- Sidebar header (if applicable)
+
+**Code Change:**
+```tsx
+// Find this pattern (or similar):
+<Text style={styles.logo}>
+  <Text style={{ color: '#f97316' }}>FYRE</Text>
+  <Text style={{ color: '#1e293b' }}>ONE</Text>
+</Text>
+
+// Replace with:
+import { FyreOneWordmark } from '@/components/FyreOneWordmark';
+
+<FyreOneWordmark height={28} isDark={false} />
+
+// For dark backgrounds:
+<FyreOneWordmark height={28} isDark={true} />
+```
+
+### ISSUE 2: Remove "+" Button from Header
+
+**Current State:** Header shows [☰] [+] [FYREONE] [🔍] [⚙️]
+
+**Required State:** Header shows [☰] [FyreOneWordmark] [🔍] [⚙️]
+
+The "New Chat" action belongs in the sidebar only, not the header. Remove the "+" button completely from the header.
+
+### ISSUE 3: Remove Animation Banner from Home Screen
+
+**Current State:** Home screen has a dark banner with animated fire extinguisher/hose reel characters and text "Touch & drag to chase"
+
+**Required State:** Remove this entire section. The home screen should flow directly from header to welcome content.
+
+**Layout After Fix:**
+```
+[Header with FyreOneWordmark]
+[Welcome to FyreOne AI]
+[Description text]
+[Topic buttons]
+[Help hint]
+[Input bar at bottom]
+```
+
+No animation banner. The animation is only for the LOGIN screen background, not the main app.
+
+---
+
+## PART C: SETTINGS SCREEN COLOR CONSISTENCY
+
+### ISSUE 4: Toggle Switches Must Be Orange
+
+**Current State:** Toggle switches are GREEN or TEAL when enabled
+
+**Required State:** ALL toggle switches must be ORANGE (#f97316) when ON
+
+**Find the Switch/Toggle component and update:**
+
+```tsx
+// React Native Switch:
+<Switch
+  trackColor={{ 
+    false: '#e2e8f0',  // slate-200 when OFF
+    true: '#f97316'    // orange-500 when ON
+  }}
+  thumbColor="#ffffff"
+  ios_backgroundColor="#e2e8f0"
+  value={isEnabled}
+  onValueChange={setIsEnabled}
+/>
+
+// Or if custom toggle component:
+<View style={[
+  styles.toggleTrack,
+  { backgroundColor: value ? '#f97316' : '#e2e8f0' }
+]}>
+```
+
+**Apply to ALL toggles:**
+- Push Notifications
+- Enable Haptics  
+- Analytics
+- Any other toggles in settings
+
+### ISSUE 5: Section Icons Should Be Orange
+
+**Current State:** Section icons may have inconsistent colors
+
+**Required State:** All settings section icons should be orange (#f97316) on an orange-50 (#fff7ed) background
+
+```tsx
+<View style={{
+  width: 40,
+  height: 40,
+  backgroundColor: '#fff7ed', // orange-50
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+}}>
+  <IconComponent size={20} color="#f97316" /> {/* orange-500 */}
+</View>
+```
+
+---
+
+## PART D: ADDITIONAL IMPROVEMENTS
+
+### IMPROVEMENT 1: Input Bar Enhancements
+
+```tsx
+// Auto-grow input as user types (up to max height)
+<TextInput
+  multiline
+  style={{
+    minHeight: 44,
+    maxHeight: 120,
+  }}
+  textAlignVertical="center"
+/>
+
+// Show send button only when there's text
+<TouchableOpacity 
+  disabled={!inputText.trim()}
+  style={[
+    styles.sendButton,
+    !inputText.trim() && styles.sendButtonDisabled
+  ]}
+>
+```
+
+### IMPROVEMENT 2: Safe Area Handling
+
+Ensure the app respects notches, home indicators, and status bars:
+
+```tsx
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Wrap screens properly
+<SafeAreaView style={{ flex: 1 }} edges={['top']}>
+
+// For bottom input bar, account for home indicator
+const insets = useSafeAreaInsets();
+<View style={{ paddingBottom: Math.max(insets.bottom, 16) }}>
+```
+
+### IMPROVEMENT 3: Loading States
+
+Add loading indicator when waiting for AI response:
+
+```tsx
+{isLoading && (
+  <View style={styles.typingIndicator}>
+    <ActivityIndicator color="#f97316" size="small" />
+    <Text style={styles.typingText}>FyreOne is thinking...</Text>
+  </View>
+)}
+```
+
+### IMPROVEMENT 4: Pull to Refresh in Chat
+
+Allow users to refresh conversation:
+
+```tsx
+<FlatList
+  refreshControl={
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor="#f97316"
+      colors={['#f97316']}
+    />
+  }
+/>
+```
+
+### IMPROVEMENT 5: Haptic Feedback on Actions
+
+Add subtle haptics for better UX:
+
+```tsx
+import * as Haptics from 'expo-haptics';
+
+const handleSend = async () => {
+  await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  // send message
+};
+
+const handleTopicPress = async () => {
+  await Haptics.selectionAsync();
+  // handle topic
+};
+```
+
+### IMPROVEMENT 6: Message Animations
+
+Animate new messages appearing:
+
+```tsx
+import Animated, { FadeInDown } from 'react-native-reanimated';
+
+<Animated.View entering={FadeInDown.duration(300)}>
+  <MessageBubble message={message} />
+</Animated.View>
+```
+
+---
+
+## PART E: VERIFICATION CHECKLIST
+
+After completing all changes, verify each item:
+
+**Bugs:**
+- [ ] Text input maintains focus when tapped (test 10+ times)
+- [ ] Keyboard opens and stays open until dismissed intentionally
+- [ ] Input works correctly after sending a message
+
+**Branding:**
+- [ ] FyreOneWordmark with [AI] badge shows in HomeScreen header
+- [ ] FyreOneWordmark shows in SettingsScreen header
+- [ ] FyreOneWordmark shows in ChatScreen header (if different from Home)
+- [ ] No plain "FYREONE" text anywhere in the app
+- [ ] No "+" button in any header
+
+**Home Screen:**
+- [ ] Animation banner is completely removed
+- [ ] Welcome text appears directly below header
+- [ ] Topic buttons display correctly
+- [ ] Input bar is at bottom with proper safe area padding
+
+**Settings:**
+- [ ] ALL toggle switches are orange (#f97316) when ON
+- [ ] ALL section icons are orange (#f97316)
+- [ ] ALL icon backgrounds are orange-50 (#fff7ed)
+- [ ] No green or teal colors anywhere except success states
+
+**General:**
+- [ ] App doesn't crash on any screen
+- [ ] No console errors related to these changes
+- [ ] Dark mode (if applicable) uses isDark={true} for wordmark
+
+---
+
+## EXECUTION ORDER
+
+1. Fix the TextInput focus bug FIRST (this is blocking usability)
+2. Update all headers with FyreOneWordmark
+3. Remove animation banner from home screen
+4. Remove "+" button from header
+5. Fix all toggle colors in settings
+6. Fix all icon colors in settings
+7. Implement improvements (safe area, haptics, etc.)
+8. Run through verification checklist
+
+**START NOW. Report back after each major section is complete.**

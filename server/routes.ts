@@ -8,6 +8,9 @@ import topicsRouter from "./routes/topics";
 import auditsRouter from "./routes/audits";
 import adminRouter from "./routes/admin";
 import accountRouter from "./routes/account";
+import projectsRouter from "./routes/projects";
+import notebooksRouter from "./routes/notebooks";
+import conversationsRouter from "./routes/conversations";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/auth", authRouter);
@@ -19,6 +22,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/audits", auditsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/account", accountRouter);
+  app.use("/api/projects", projectsRouter);
+  app.use("/api/notebooks", notebooksRouter);
+  app.use("/api/conversations", conversationsRouter);
 
   const httpServer = createServer(app);
 

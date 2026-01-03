@@ -6,10 +6,10 @@ import {
   TextInput,
   Alert,
   Platform,
-  Switch,
   Linking,
   ActionSheetIOS,
 } from "react-native";
+import { Toggle } from "@/components/Toggle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
@@ -22,7 +22,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemeMode } from "@/contexts/ThemeContext";
 import { Spacing, BorderRadius, FireOneColors, withOpacity } from "@/constants/theme";
-import { FireOneLogo } from "@/components/FireOneLogo";
+import { FyreOneWordmark } from "@/components/FyreOneWordmark";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { UserAvatar, STORAGE_KEY_AVATAR } from "@/components/UserAvatar";
 import { getApiUrl } from "@/lib/query-client";
@@ -606,7 +606,7 @@ export default function SettingsScreen() {
         >
           <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
-        <FireOneLogo size="medium" showSubtitle={false} variant="text" />
+        <FyreOneWordmark height={28} isDark={isDark} />
         <View style={styles.headerSpacer} />
       </View>
 
@@ -621,7 +621,7 @@ export default function SettingsScreen() {
           Customize your FyreOne AI experience
         </ThemedText>
 
-        <SectionCard title="Appearance" icon="moon" iconColor="#8B5CF6" theme={theme}>
+        <SectionCard title="Appearance" icon="moon" iconColor={FireOneColors.orange} theme={theme}>
           <View style={styles.themeOptions}>
             {(["light", "dark", "system"] as const).map((mode) => (
               <Pressable
@@ -658,7 +658,7 @@ export default function SettingsScreen() {
           </View>
         </SectionCard>
 
-        <SectionCard title="Account" icon="user" iconColor="#3B82F6" theme={theme}>
+        <SectionCard title="Account" icon="user" iconColor={FireOneColors.orange} theme={theme}>
           <View style={styles.avatarSection}>
             <Pressable onPress={handleAvatarPress} style={styles.avatarButton}>
               <UserAvatar size={80} imageUri={userAvatar} name={userName} showBorder />
@@ -713,7 +713,7 @@ export default function SettingsScreen() {
           />
         </SectionCard>
 
-        <SectionCard title="AI Memory" icon="database" iconColor="#06B6D4" theme={theme}>
+        <SectionCard title="AI Memory" icon="database" iconColor={FireOneColors.orange} theme={theme}>
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <ThemedText style={[styles.toggleLabel, { color: theme.text }]}>Remember Conversations</ThemedText>
@@ -721,16 +721,14 @@ export default function SettingsScreen() {
                 Allow FyreOne to remember context from previous conversations for more personalized responses
               </ThemedText>
             </View>
-            <Switch
+            <Toggle
               value={memoryEnabled}
               onValueChange={handleMemoryToggle}
-              trackColor={{ false: theme.border, true: withOpacity(FireOneColors.orange, 0.5) }}
-              thumbColor={memoryEnabled ? FireOneColors.orange : theme.textSecondary}
             />
           </View>
         </SectionCard>
 
-        <SectionCard title="AI Tone" icon="message-circle" iconColor="#F59E0B" theme={theme}>
+        <SectionCard title="AI Tone" icon="message-circle" iconColor={FireOneColors.orange} theme={theme}>
           <ThemedText style={[styles.fieldDescription, { color: theme.textSecondary }]}>
             Choose how FyreOne AI communicates with you
           </ThemedText>
@@ -765,7 +763,7 @@ export default function SettingsScreen() {
           </View>
         </SectionCard>
 
-        <SectionCard title="AI Personalization" icon="cpu" iconColor="#10B981" theme={theme} collapsible defaultExpanded={false}>
+        <SectionCard title="AI Personalization" icon="cpu" iconColor={FireOneColors.orange} theme={theme} collapsible defaultExpanded={false}>
           <ThemedText style={[styles.fieldDescription, { color: theme.textSecondary }]}>
             Customize how FyreOne AI responds to your questions. Add specific context about your projects, preferences, or areas of focus.
           </ThemedText>
@@ -794,7 +792,7 @@ export default function SettingsScreen() {
           </Pressable>
         </SectionCard>
 
-        <SectionCard title="Document Library" icon="folder" iconColor="#F59E0B" theme={theme} collapsible defaultExpanded={false}>
+        <SectionCard title="Document Library" icon="folder" iconColor={FireOneColors.orange} theme={theme} collapsible defaultExpanded={false}>
           <ThemedText style={[styles.fieldDescription, { color: theme.textSecondary }]}>
             Upload reference documents, floor plans, or compliance reports for quick access during conversations.
           </ThemedText>
@@ -846,7 +844,7 @@ export default function SettingsScreen() {
           </Pressable>
         </SectionCard>
 
-        <SectionCard title="Notifications" icon="bell" iconColor="#EC4899" theme={theme}>
+        <SectionCard title="Notifications" icon="bell" iconColor={FireOneColors.orange} theme={theme}>
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <ThemedText style={[styles.toggleLabel, { color: theme.text }]}>Push Notifications</ThemedText>
@@ -854,22 +852,17 @@ export default function SettingsScreen() {
                 Get alerts for compliance updates and reminders
               </ThemedText>
             </View>
-            <Switch
+            <Toggle
               value={notificationsEnabled}
               onValueChange={async (value) => {
                 setNotificationsEnabled(value);
                 await AsyncStorage.setItem(STORAGE_KEYS.NOTIFICATIONS_ENABLED, value.toString());
-                if (Platform.OS !== "web" && hapticEnabled) {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }
               }}
-              trackColor={{ false: theme.border, true: withOpacity(FireOneColors.orange, 0.5) }}
-              thumbColor={notificationsEnabled ? FireOneColors.orange : theme.textSecondary}
             />
           </View>
         </SectionCard>
 
-        <SectionCard title="Haptic Feedback" icon="smartphone" iconColor="#8B5CF6" theme={theme}>
+        <SectionCard title="Haptic Feedback" icon="smartphone" iconColor={FireOneColors.orange} theme={theme}>
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <ThemedText style={[styles.toggleLabel, { color: theme.text }]}>Enable Haptics</ThemedText>
@@ -877,22 +870,17 @@ export default function SettingsScreen() {
                 Feel subtle vibrations when interacting with the app
               </ThemedText>
             </View>
-            <Switch
+            <Toggle
               value={hapticEnabled}
               onValueChange={async (value) => {
                 setHapticEnabled(value);
                 await AsyncStorage.setItem(STORAGE_KEYS.HAPTIC_ENABLED, value.toString());
-                if (Platform.OS !== "web" && value) {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                }
               }}
-              trackColor={{ false: theme.border, true: withOpacity(FireOneColors.orange, 0.5) }}
-              thumbColor={hapticEnabled ? FireOneColors.orange : theme.textSecondary}
             />
           </View>
         </SectionCard>
 
-        <SectionCard title="Privacy & Security" icon="shield" iconColor="#6366F1" theme={theme}>
+        <SectionCard title="Privacy & Security" icon="shield" iconColor={FireOneColors.orange} theme={theme}>
           <View style={styles.toggleRow}>
             <View style={styles.toggleInfo}>
               <ThemedText style={[styles.toggleLabel, { color: theme.text }]}>Analytics</ThemedText>
@@ -900,16 +888,11 @@ export default function SettingsScreen() {
                 Help improve FyreOne AI by sharing anonymous usage data
               </ThemedText>
             </View>
-            <Switch
+            <Toggle
               value={analyticsEnabled}
               onValueChange={(value) => {
                 setAnalyticsEnabled(value);
-                if (Platform.OS !== "web") {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }
               }}
-              trackColor={{ false: theme.border, true: withOpacity(FireOneColors.orange, 0.5) }}
-              thumbColor={analyticsEnabled ? FireOneColors.orange : theme.textSecondary}
             />
           </View>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -935,7 +918,7 @@ export default function SettingsScreen() {
           </Pressable>
         </SectionCard>
 
-        <SectionCard title="Support" icon="help-circle" iconColor="#14B8A6" theme={theme} collapsible defaultExpanded={false}>
+        <SectionCard title="Support" icon="help-circle" iconColor={FireOneColors.orange} theme={theme} collapsible defaultExpanded={false}>
           <Pressable
             onPress={() => openExternalLink("mailto:support@fireone.net")}
             style={({ pressed }) => [styles.actionRow, pressed && styles.pressed]}
@@ -966,7 +949,7 @@ export default function SettingsScreen() {
           </Pressable>
         </SectionCard>
 
-        <SectionCard title="Legal" icon="file-text" iconColor="#78716C" theme={theme} collapsible defaultExpanded={false}>
+        <SectionCard title="Legal" icon="file-text" iconColor={FireOneColors.orange} theme={theme} collapsible defaultExpanded={false}>
           <Pressable
             onPress={() => openExternalLink("https://fireone.net/terms")}
             style={({ pressed }) => [styles.actionRow, pressed && styles.pressed]}
@@ -984,7 +967,7 @@ export default function SettingsScreen() {
           </Pressable>
         </SectionCard>
 
-        <SectionCard title="About" icon="info" iconColor={theme.textSecondary} theme={theme}>
+        <SectionCard title="About" icon="info" iconColor={FireOneColors.orange} theme={theme}>
           <View style={styles.aboutRow}>
             <ThemedText style={[styles.aboutLabel, { color: theme.textSecondary }]}>Version</ThemedText>
             <ThemedText style={[styles.aboutValue, { color: theme.text }]}>1.0.0</ThemedText>

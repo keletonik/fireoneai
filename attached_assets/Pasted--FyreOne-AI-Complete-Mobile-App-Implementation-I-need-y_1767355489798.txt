@@ -1,0 +1,502 @@
+# FyreOne AI - Complete Mobile App Implementation
+
+I need you to implement several features for my FyreOne AI fire safety compliance mobile app (iOS/Android via React Native or web-based mobile). Please implement these in phases, confirming completion before moving to the next phase.
+
+## PROJECT CONTEXT
+
+FyreOne AI is a NSW fire safety compliance assistant chatbot. The app uses:
+- React + TypeScript with Vite
+- Tailwind CSS + shadcn/ui components
+- wouter for routing
+- TanStack Query for data fetching
+- Node.js + Express backend
+- PostgreSQL with Drizzle ORM
+- OpenAI for chat completions
+
+**Brand Colors (USE THESE CONSISTENTLY):**
+- Primary Orange: #f97316 (orange-500)
+- Primary Hover: #ea580c (orange-600)
+- Primary Light BG: #fff7ed (orange-50)
+- Light Background: white / #f8fafc (slate-50)
+- Dark Text: #1e293b (slate-800)
+- Muted Text: #64748b (slate-500)
+- Border: #e2e8f0 (slate-200)
+- Success/Active indicators: #22c55e (green-500)
+- ALL toggles when ON: orange-500 (NOT green/teal)
+
+**Mentaris Branding:**
+- "Powered by MENTARIS" in footer of login page
+- MENTARIS styled as: MENT (slate-500) + A (cyan-400) + RIS (slate-500)
+- Link to https://mentaris.io
+
+---
+
+## PHASE 1: FYREONE WORDMARK LOGO
+
+Create a wordmark logo component to replace the plain "FYREONE" text in the header. This is an SVG with "Fyre" in gradient orange, "One" that adapts to light/dark backgrounds, and an "AI" badge.
+
+### Create FyreOneWordmark.tsx
+
+```tsx
+// client/src/components/FyreOneWordmark.tsx
+
+interface FyreOneWordmarkProps {
+  height?: number;
+  isDark?: boolean;  // Pass true when on dark backgrounds
+  className?: string;
+}
+
+export function FyreOneWordmark({ height = 32, isDark = false, className = '' }: FyreOneWordmarkProps) {
+  return (
+    <svg viewBox="0 0 160 32" fill="none" className={className} style={{ height, width: 'auto' }}>
+      <defs>
+        <linearGradient id="fyreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#fdba74" />
+          <stop offset="40%" stopColor="#fb923c" />
+          <stop offset="100%" stopColor="#ea580c" />
+        </linearGradient>
+      </defs>
+      
+      {/* "Fyre" - always gradient orange */}
+      <text 
+        x="0" 
+        y="24" 
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+        fontSize="26" 
+        fontWeight="700"
+        fill="url(#fyreGradient)"
+      >
+        Fyre
+      </text>
+      
+      {/* "One" - dark on light bg, white on dark bg */}
+      <text 
+        x="60" 
+        y="24" 
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+        fontSize="26" 
+        fontWeight="700"
+        fill={isDark ? "#f8fafc" : "#1e293b"}
+      >
+        One
+      </text>
+      
+      {/* "AI" badge */}
+      <rect 
+        x="122" 
+        y="8" 
+        width="28" 
+        height="16" 
+        rx="4" 
+        fill={isDark ? "#334155" : "#f1f5f9"} 
+        stroke={isDark ? "#475569" : "#e2e8f0"} 
+        strokeWidth="1" 
+      />
+      <text 
+        x="136" 
+        y="20" 
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+        fontSize="10" 
+        fontWeight="600"
+        fill={isDark ? "#94a3b8" : "#64748b"}
+        textAnchor="middle"
+      >
+        AI
+      </text>
+    </svg>
+  );
+}
+```
+
+This wordmark features:
+- "Fyre" with warm orange gradient (always visible on any background)
+- "One" that adapts: dark slate on light backgrounds, white on dark backgrounds
+- Small "AI" badge with rounded corners that also adapts to light/dark
+- Clean, modern typography with tight letter-spacing
+
+**Usage:**
+```tsx
+// Light mode header
+<FyreOneWordmark height={28} isDark={false} />
+
+// Dark mode header
+<FyreOneWordmark height={28} isDark={true} />
+```
+
+---
+
+## PHASE 2: FIRE PANEL DIAGNOSTIC LOADING ANIMATION
+
+Create a loading screen that appears between login and the main app. It should look like a fire alarm control panel running system diagnostics.
+
+### Create FirePanelLoader.tsx
+
+```tsx
+// client/src/components/FirePanelLoader.tsx
+
+import { useState, useEffect } from 'react';
+import { FyreOneWordmark } from './FyreOneWordmark';
+
+interface FirePanelLoaderProps {
+  onComplete?: () => void;
+  duration?: number; // Total duration in ms, default ~2500ms
+}
+
+export function FirePanelLoader({ onComplete, duration = 2500 }: FirePanelLoaderProps) {
+  const [blocks, setBlocks] = useState<('idle' | 'checking' | 'checked')[]>(
+    Array(12).fill('idle')
+  );
+  const [phase, setPhase] = useState<'checking' | 'complete' | 'fading'>('checking');
+  const [opacity, setOpacity] = useState(1);
+
+  useEffect(() => {
+    let currentBlock = 0;
+    const checkInterval = setInterval(() => {
+      if (currentBlock < 12) {
+        setBlocks(prev => {
+          const newBlocks = [...prev];
+          if (currentBlock > 0) {
+            newBlocks[currentBlock - 1] = 'checked';
+          }
+          newBlocks[currentBlock] = 'checking';
+          return newBlocks;
+        });
+        currentBlock++;
+      } else {
+        setBlocks(prev => prev.map(() => 'checked'));
+        setPhase('complete');
+        clearInterval(checkInterval);
+        
+        setTimeout(() => {
+          setPhase('fading');
+          let fadeOpacity = 1;
+          const fadeInterval = setInterval(() => {
+            fadeOpacity -= 0.05;
+            setOpacity(fadeOpacity);
+            if (fadeOpacity <= 0) {
+              clearInterval(fadeInterval);
+              onComplete?.();
+            }
+          }, 30);
+        }, 400);
+      }
+    }, 150);
+
+    return () => clearInterval(checkInterval);
+  }, [onComplete]);
+
+  const getBlockStyle = (status: string) => {
+    switch (status) {
+      case 'checking': 
+        return 'bg-orange-400 animate-pulse shadow-lg shadow-orange-400/50';
+      case 'checked': 
+        return 'bg-orange-500';
+      default: 
+        return 'bg-slate-200';
+    }
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50"
+      style={{ opacity }}
+    >
+      <div className="relative">
+        {/* Panel frame */}
+        <div className="w-72 bg-slate-100 rounded-2xl p-6 border-2 border-slate-200 shadow-xl">
+          {/* Panel header */}
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+            <span className="text-sm font-semibold text-slate-700">SYSTEM CHECK</span>
+            <div className={`w-2 h-2 rounded-full ${
+              phase === 'complete' ? 'bg-green-500' : 'bg-orange-400 animate-pulse'
+            }`} />
+          </div>
+          
+          {/* Block grid - 4x3 */}
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            {blocks.map((status, i) => (
+              <div
+                key={i}
+                className={`aspect-square rounded-md transition-all duration-200 ${getBlockStyle(status)}`}
+              />
+            ))}
+          </div>
+          
+          {/* Status text */}
+          <p className="text-center text-xs text-slate-500 font-medium">
+            {phase === 'complete' ? 'ALL SYSTEMS OPERATIONAL' : 'INITIALIZING...'}
+          </p>
+        </div>
+        
+        {/* Corner brackets */}
+        <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-orange-400 rounded-tl" />
+        <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-orange-400 rounded-tr" />
+        <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-orange-400 rounded-bl" />
+        <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-orange-400 rounded-br" />
+      </div>
+      
+      {/* Brand wordmark below panel */}
+      <div className="mt-8">
+        <FyreOneWordmark height={28} isDark={false} />
+      </div>
+    </div>
+  );
+}
+```
+
+This loader:
+- Shows a 4x3 grid of blocks in a "fire panel" frame
+- Blocks light up sequentially (one every 150ms)
+- Each block pulses orange while "checking", then stays solid
+- Shows "SYSTEM CHECK" header with animated status dot
+- Displays "INITIALIZING..." then "ALL SYSTEMS OPERATIONAL"
+- Fades out smoothly when complete
+- Has decorative corner brackets like a real fire panel
+
+---
+
+## PHASE 3: LOGIN PAGE WITH FIRE SAFETY GRID ANIMATION
+
+Create the login/splash page with the animated sprinkler/alarm network background.
+
+### Create FireSafetyGrid.tsx
+
+This is a canvas-based animation showing:
+- Sprinkler head nodes with ceiling mounts and deflector plates
+- Smoke alarm nodes (circular with sensor holes)
+- Dashed connection lines between nearby devices
+- Green monitoring pulses traveling along connections
+- Orange alert pulses (less frequent)
+- Occasional sprinkler "activation" with blue water spray particles
+
+The animation should:
+- Accept `isDark` prop for light/dark themes
+- Use requestAnimationFrame for smooth 60fps
+- Handle window resize
+- Clean up on unmount
+- Be subtle (50-70% opacity) so it doesn't distract from login form
+
+### Create FyreOneLoginDark.tsx (Premium Dark Theme)
+
+Structure:
+```
+- Full screen slate-950 background
+- FireSafetyGrid animation (isDark={true})
+- Gradient overlays (orange glows)
+- Centered content:
+  - "AI-Powered Compliance" badge with pulsing dot
+  - Large "FyreOne" title (Fyre=gradient orange, One=white)
+  - Tagline
+  - Login form card (slate-900/70 backdrop-blur)
+- Footer: "Powered by MENTARIS"
+- Bottom accent line
+```
+
+Props: `onSignIn`, `onSignUp`, `isLoading`, `error`
+
+### Create FyreOneLoginLight.tsx (Minimal Light Theme)
+
+Structure:
+```
+- Full screen white/slate-50 background
+- FireSafetyGrid animation (isDark={false})
+- Orange accent line at top
+- Centered content:
+  - Flame SVG icon
+  - "FyreOne AI" title
+  - "NSW Fire Safety Compliance" subtitle
+  - Login form card (white/80 backdrop-blur)
+- Footer: "Powered by MENTARIS"
+```
+
+---
+
+## PHASE 4: UPDATED MAIN SCREEN (POST-LOGIN)
+
+After login, show the Fire Panel Loader, then navigate to the main screen.
+
+### Main Screen Layout
+
+**Header:**
+```
+[☰ Menu]     [FyreOneWordmark]     [🔍] [⚙️]
+```
+
+- Use the FyreOneWordmark component centered (with isDark based on theme)
+- Menu button opens sidebar
+- Search and Settings icons on right
+
+**Main Content (NO animation banner):**
+```
+Welcome to FyreOne AI
+
+Your NSW fire safety compliance assistant. Ask questions 
+about AFSS, NCC/BCA provisions, or Australian Standards.
+
+What's your fire-related enquiry about?
+
+[🔥 Fire Indicating Panels] [🚿 Fire Hydrants]
+[🚪 Fire Doors] [🔔 Smoke Alarms]
+[💧 Sprinkler Systems] [🧯 Portables (FE + FB + FHR)]
+
+⚡ Type /help to see available commands
+```
+
+**Input Bar (bottom):**
+- Orange gradient background (orange-50 to orange-100)
+- Paperclip icon, Mic icon, text input, Send button
+- Send button: orange-500 background
+
+### Sidebar Structure
+
+When menu is tapped:
+- Dark overlay behind
+- Slide in from left (w-72)
+- Contains:
+  - "+ New Chat" button (orange, with MessageSquare/chat icon - NOT the wordmark)
+  - Search input
+  - FAVOURITES section (collapsible)
+  - RECENT section (collapsible)
+  - PROJECTS section (collapsible, "+ New Project")
+  - NOTEBOOKS section (collapsible, "View Notebooks")
+  - Profile & Settings at bottom
+
+---
+
+## PHASE 5: UPDATED SETTINGS SCREEN
+
+Fix the color inconsistencies in the settings page.
+
+### Rules:
+1. ALL toggle switches: orange-500 when ON, slate-200 when OFF
+2. ALL section icons: orange-500 on orange-50 background
+3. Remove any green/teal colors except for system status indicators
+4. Consistent card styling: white bg, rounded-2xl, border-slate-100, shadow-sm
+
+### Settings Sections:
+
+**Appearance**
+- Light / Dark / System buttons
+- Selected = orange border + orange-50 bg
+
+**AI Tone**
+- Chips: Professional, Friendly, Concise, Detailed
+- Selected = orange-500 bg, white text
+- Unselected = border-slate-200, slate-600 text
+
+**Push Notifications**
+- Toggle (orange when on)
+
+**Haptic Feedback**
+- Toggle (orange when on)
+
+**Analytics**
+- Toggle (orange when on)
+
+**About**
+- Version: 1.0.0
+- Developer: Mentaris Group
+- Website: mentaris.io/fyreone (orange link)
+- Build: 2025.12.29
+
+**Sign Out Button**
+- orange-50 bg, orange-600 text
+- Full width at bottom
+
+---
+
+## PHASE 6: DATABASE SCHEMA
+
+Add these tables using Drizzle ORM:
+
+```typescript
+// Projects
+export const projects = pgTable('projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  color: text('color').default('#f97316'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Notebooks
+export const notebooks = pgTable('notebooks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Snippets
+export const snippets = pgTable('snippets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  notebookId: uuid('notebook_id').references(() => notebooks.id, { onDelete: 'cascade' }).notNull(),
+  conversationId: uuid('conversation_id').notNull(),
+  messageIndex: integer('message_index').notNull(),
+  content: text('content').notNull(),
+  title: text('title'),
+  notes: text('notes'),
+  tags: jsonb('tags').$type<string[]>().default([]),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+```
+
+Update conversations table:
+- Add `projectId` (uuid, nullable)
+- Add `isFavorite` (boolean, default false)
+- Add `title` (text, auto-generated)
+
+---
+
+## PHASE 7: MESSAGE ACTIONS & SNIPPETS
+
+Add action buttons to assistant messages:
+```
+[👍] [👎] [📋 Copy] [📌 Save to Notebook]
+```
+
+Create SaveToNotebookModal:
+- Content preview
+- Notebook dropdown (with "Create new" option)
+- Title input (optional)
+- Notes textarea (optional)
+- Tags input
+- Save button
+
+---
+
+## PHASE 8: EXPORT & API ENDPOINTS
+
+**Export:**
+- Add export button to chat (menu or header)
+- Export as Markdown (.md)
+- Copy to clipboard
+
+**API Endpoints:**
+```
+GET/POST/PATCH/DELETE /api/projects
+GET/POST/PATCH/DELETE /api/notebooks
+POST/PATCH/DELETE /api/snippets
+GET /api/snippets/tags
+PATCH /api/conversations/:id (title, projectId, isFavorite)
+GET /api/conversations/search?q=
+```
+
+---
+
+## IMPLEMENTATION ORDER
+
+1. **Phase 1**: FyreOneWordmark component
+2. **Phase 2**: FirePanelLoader component  
+3. **Phase 3**: Login pages (FireSafetyGrid + FyreOneLoginDark/Light)
+4. **Phase 4**: Updated main screen (clean header with wordmark, no animation, sidebar)
+5. **Phase 5**: Updated settings screen (consistent colors)
+6. **Phase 6**: Database schema
+7. **Phase 7**: Message actions & snippets
+8. **Phase 8**: Export & API
+
+Start with Phase 1 (FyreOneWordmark). Show me the component when ready!

@@ -1,5 +1,6 @@
 import React from "react";
 import { View, StyleSheet, Pressable, Image, Platform } from "react-native";
+import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
@@ -30,7 +31,9 @@ interface MessageBubbleProps {
   message: Message;
   onLongPress?: () => void;
   onNextStepPress?: (step: string) => void;
-  onFavoritePress?: (messageId: number) => void;
+  onFavoritePress?: (messageId: number) => Promise<boolean> | void;
+  onSaveToNotebook?: (message: Message) => void;
+  onFeedback?: (messageId: number, type: "positive" | "negative") => Promise<boolean> | void;
   userAvatarUri?: string | null;
   userName?: string | null;
 }
@@ -57,11 +60,12 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-export function MessageBubble({ message, onLongPress, onNextStepPress, onFavoritePress, userAvatarUri, userName }: MessageBubbleProps) {
+export function MessageBubble({ message, onLongPress, onNextStepPress, onFavoritePress, onSaveToNotebook, onFeedback, userAvatarUri, userName }: MessageBubbleProps) {
   const { theme, isDark } = useTheme();
   const isUser = message.role === "user";
   const [isFavorite, setIsFavorite] = React.useState(message.isFavorite || false);
   const [showActionMenu, setShowActionMenu] = React.useState(false);
+  const [feedbackGiven, setFeedbackGiven] = React.useState<"positive" | "negative" | null>(null);
 
   const handleLongPress = async () => {
     if (Platform.OS !== "web") {
@@ -83,8 +87,47 @@ export function MessageBubble({ message, onLongPress, onNextStepPress, onFavorit
     if (Platform.OS !== "web") {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    setIsFavorite(!isFavorite);
-    onFavoritePress?.(message.id);
+    
+    const result = onFavoritePress?.(message.id);
+    const success = result instanceof Promise ? await result : true;
+    
+    if (success) {
+      setIsFavorite(!isFavorite);
+    }
+    setShowActionMenu(false);
+  };
+
+  const handleThumbsUp = async () => {
+    if (Platform.OS !== "web") {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    const result = onFeedback?.(message.id, "positive");
+    const success = result instanceof Promise ? await result : true;
+    
+    if (success) {
+      setFeedbackGiven("positive");
+      if (Platform.OS !== "web") {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    }
+    setShowActionMenu(false);
+  };
+
+  const handleThumbsDown = async () => {
+    if (Platform.OS !== "web") {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    const result = onFeedback?.(message.id, "negative");
+    const success = result instanceof Promise ? await result : true;
+    
+    if (success) {
+      setFeedbackGiven("negative");
+      if (Platform.OS !== "web") {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+    }
     setShowActionMenu(false);
   };
 
@@ -197,7 +240,10 @@ export function MessageBubble({ message, onLongPress, onNextStepPress, onFavorit
   };
 
   return (
-    <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
+    <Animated.View 
+      entering={FadeInUp.duration(300).springify().damping(15)}
+      style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}
+    >
       {!isUser ? (
         <View style={styles.avatarContainer}>
           <View style={[styles.flameContainer, { backgroundColor: FireOneColors.orange + "15" }]}>
@@ -266,9 +312,9 @@ export function MessageBubble({ message, onLongPress, onNextStepPress, onFavorit
               <Feather name="copy" size={18} color={theme.text} />
               <ThemedText style={[styles.actionMenuText, { color: theme.text }]}>Copy</ThemedText>
             </Pressable>
-            {!isUser && message.id > 0 ? (
+            {!isUser && message.id > 0 && message.id <= 2147483647 ? (
               <Pressable 
-                style={styles.actionMenuItem}
+                style={[styles.actionMenuItem, { borderBottomColor: theme.border }]}
                 onPress={handleFavorite}
               >
                 <Feather name="bookmark" size={18} color={isFavorite ? FireOneColors.orange : theme.text} />
@@ -276,6 +322,66 @@ export function MessageBubble({ message, onLongPress, onNextStepPress, onFavorit
                   {isFavorite ? "Remove Bookmark" : "Bookmark"}
                 </ThemedText>
               </Pressable>
+            ) : null}
+            {!isUser && message.id > 0 && message.id <= 2147483647 && onSaveToNotebook ? (
+              <Pressable 
+                style={[styles.actionMenuItem, { borderBottomColor: theme.border }]}
+                onPress={() => {
+                  setShowActionMenu(false);
+                  onSaveToNotebook(message);
+                }}
+              >
+                <Feather name="save" size={18} color={theme.text} />
+                <ThemedText style={[styles.actionMenuText, { color: theme.text }]}>
+                  Save to Notebook
+                </ThemedText>
+              </Pressable>
+            ) : null}
+            {!isUser && message.id > 0 && message.id <= 2147483647 && onFeedback ? (
+              <View style={styles.actionMenuFeedbackRow}>
+                <Pressable 
+                  style={[
+                    styles.feedbackButton,
+                    feedbackGiven === "positive" && styles.feedbackButtonActive,
+                    { borderColor: feedbackGiven === "positive" ? "#22C55E" : theme.border }
+                  ]}
+                  onPress={handleThumbsUp}
+                  disabled={feedbackGiven !== null}
+                >
+                  <Feather 
+                    name="thumbs-up" 
+                    size={16} 
+                    color={feedbackGiven === "positive" ? "#22C55E" : theme.textSecondary} 
+                  />
+                  <ThemedText style={[
+                    styles.feedbackButtonText, 
+                    { color: feedbackGiven === "positive" ? "#22C55E" : theme.textSecondary }
+                  ]}>
+                    Helpful
+                  </ThemedText>
+                </Pressable>
+                <Pressable 
+                  style={[
+                    styles.feedbackButton,
+                    feedbackGiven === "negative" && styles.feedbackButtonActive,
+                    { borderColor: feedbackGiven === "negative" ? "#EF4444" : theme.border }
+                  ]}
+                  onPress={handleThumbsDown}
+                  disabled={feedbackGiven !== null}
+                >
+                  <Feather 
+                    name="thumbs-down" 
+                    size={16} 
+                    color={feedbackGiven === "negative" ? "#EF4444" : theme.textSecondary} 
+                  />
+                  <ThemedText style={[
+                    styles.feedbackButtonText, 
+                    { color: feedbackGiven === "negative" ? "#EF4444" : theme.textSecondary }
+                  ]}>
+                    Not helpful
+                  </ThemedText>
+                </Pressable>
+              </View>
             ) : null}
           </View>
         </Pressable>
@@ -287,7 +393,7 @@ export function MessageBubble({ message, onLongPress, onNextStepPress, onFavorit
         </View>
       ) : null}
       
-      {!isUser && !message.isStreaming && message.id > 0 && onFavoritePress ? (
+      {!isUser && !message.isStreaming && message.id > 0 && message.id <= 2147483647 && onFavoritePress ? (
         <Pressable onPress={handleFavorite} style={styles.favoriteButton}>
           <Feather 
             name={isFavorite ? "bookmark" : "bookmark"} 
@@ -297,7 +403,7 @@ export function MessageBubble({ message, onLongPress, onNextStepPress, onFavorit
           />
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -660,6 +766,30 @@ const styles = StyleSheet.create({
   },
   actionMenuText: {
     fontSize: 15,
+    fontWeight: "500",
+  },
+  actionMenuFeedbackRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    paddingTop: Spacing.sm,
+  },
+  feedbackButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  feedbackButtonActive: {
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
+  feedbackButtonText: {
+    fontSize: 13,
     fontWeight: "500",
   },
 });

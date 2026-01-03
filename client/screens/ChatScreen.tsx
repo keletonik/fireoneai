@@ -8,6 +8,8 @@ import {
   Pressable,
   Image,
   Text,
+  useWindowDimensions,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -22,7 +24,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, FireOneColors, BorderRadius } from "@/constants/theme";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
-import { FireOneLogo } from "@/components/FireOneLogo";
 import { MessageBubble, Message } from "@/components/MessageBubble";
 import { InputComposer, Attachment } from "@/components/InputComposer";
 import { ThemedText } from "@/components/ThemedText";
@@ -30,6 +31,9 @@ import { LoadingSquares } from "@/components/LoadingSquares";
 import { VoiceInput, speakText } from "@/components/VoiceInput";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { SlashCommand, SLASH_COMMANDS, parseSlashCommand } from "@/lib/commands";
+import { FyreOneWordmark } from "@/components/FyreOneWordmark";
+import { Sidebar } from "@/components/Sidebar";
+import { SaveToNotebookModal } from "@/components/SaveToNotebookModal";
 
 interface Conversation {
   id: number;
@@ -65,6 +69,8 @@ export default function ChatScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const queryClient = useQueryClient();
   const flatListRef = useRef<FlatList>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const isDesktop = windowWidth >= 768;
   
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -79,6 +85,9 @@ export default function ChatScreen() {
   const [userName, setUserName] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [prefillText, setPrefillText] = useState<string | undefined>(undefined);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [saveToNotebookMessage, setSaveToNotebookMessage] = useState<Message | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadDocumentContent = async (file: UploadedFile): Promise<UploadedFile> => {
     try {
@@ -427,14 +436,59 @@ export default function ChatScreen() {
     sendMessage(contextualQuery);
   }, [sendMessage]);
 
-  const handleFavoritePress = useCallback(async (messageId: number) => {
+  // Helper to check if message ID is a valid persisted database ID
+  const isPersistedMessageId = useCallback((messageId: number): boolean => {
+    const MAX_DB_INT = 2147483647;
+    return messageId > 0 && messageId <= MAX_DB_INT;
+  }, []);
+
+  const handleFavoritePress = useCallback(async (messageId: number): Promise<boolean> => {
+    if (!isPersistedMessageId(messageId)) {
+      console.log("Skipping favorite for temporary message:", messageId);
+      return false;
+    }
+    
     try {
       const url = new URL(`/api/messages/${messageId}/favorite`, getApiUrl());
-      await fetch(url.toString(), { method: "POST" });
+      const response = await fetch(url.toString(), { method: "POST" });
+      if (!response.ok) {
+        console.error("Failed to toggle favorite:", response.status);
+        return false;
+      }
+      return true;
     } catch (error) {
       console.error("Error toggling favorite:", error);
+      return false;
     }
-  }, []);
+  }, [isPersistedMessageId]);
+
+  const handleFeedback = useCallback(async (messageId: number, type: "positive" | "negative"): Promise<boolean> => {
+    if (!isPersistedMessageId(messageId)) {
+      console.log("Skipping feedback for temporary message:", messageId);
+      return false;
+    }
+    
+    try {
+      const url = new URL(`/api/feedback/messages/${messageId}`, getApiUrl());
+      const response = await fetch(url.toString(), { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          rating: type === "positive" ? 1 : -1,
+          feedbackType: "rating",
+          userId: null
+        })
+      });
+      if (!response.ok) {
+        console.error("Failed to submit feedback:", response.status);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      return false;
+    }
+  }, [isPersistedMessageId]);
 
   const handleExportPDF = useCallback(async () => {
     if (messages.length === 0) {
@@ -503,9 +557,50 @@ export default function ChatScreen() {
     setActiveCommand(null);
   }, []);
 
+  const loadConversation = useCallback(async (conversationId: number) => {
+    try {
+      setCurrentConversationId(conversationId);
+      setMessages([]);
+      setStreamingMessage("");
+      setErrorMessage(null);
+      
+      const baseUrl = getApiUrl();
+      const url = new URL(`/api/conversations/${conversationId}/messages`, baseUrl);
+      const res = await fetch(url.toString());
+      
+      if (!res.ok) {
+        throw new Error("Failed to load conversation");
+      }
+      
+      const data = await res.json();
+      setMessages(data.messages || []);
+    } catch (error) {
+      console.error("Error loading conversation:", error);
+      setErrorMessage("Failed to load conversation. Please try again.");
+    }
+  }, []);
+
   const handlePrefillConsumed = useCallback(() => {
     setPrefillText(undefined);
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    if (!currentConversationId) return;
+    setIsRefreshing(true);
+    try {
+      const baseUrl = getApiUrl();
+      const url = new URL(`/api/conversations/${currentConversationId}/messages`, baseUrl);
+      const res = await fetch(url.toString());
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data.messages || []);
+      }
+    } catch (error) {
+      console.error("Error refreshing:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [currentConversationId]);
 
   const handleSendWithPrefillClear = useCallback((msg: string, cmd?: SlashCommand, attachments?: Attachment[]) => {
     sendMessage(msg, cmd, attachments);
@@ -519,6 +614,8 @@ export default function ChatScreen() {
         message={item} 
         onNextStepPress={isLastAssistantMessage ? handleNextStepPress : undefined}
         onFavoritePress={handleFavoritePress}
+        onSaveToNotebook={(msg) => setSaveToNotebookMessage(msg)}
+        onFeedback={handleFeedback}
         userAvatarUri={userAvatarUri}
         userName={userName}
       />
@@ -527,26 +624,23 @@ export default function ChatScreen() {
 
 
   const FIRE_TOPICS = [
-    { label: "Fire Indicating Panels", icon: "cpu" },
-    { label: "Fire Hydrants", icon: "droplet" },
-    { label: "Fire Doors", icon: "log-in" },
-    { label: "Smoke Alarms", icon: "alert-circle" },
-    { label: "Sprinkler Systems", icon: "cloud-rain" },
-    { label: "Portables (FE + FB + FHR)", icon: "shield", description: "Fire extinguishers, fire blankets & fire hose reels" },
+    { label: "Fire Indicating Panels", icon: "cpu", placeholder: 'e.g., "What does a FIP general fault mean?"' },
+    { label: "Fire Hydrants", icon: "droplet", placeholder: 'e.g., "What are the testing requirements for hydrants?"' },
+    { label: "Fire Doors", icon: "log-in", placeholder: 'e.g., "How often do fire doors need inspection?"' },
+    { label: "Smoke Alarms", icon: "alert-circle", placeholder: 'e.g., "What are the AS3786 requirements?"' },
+    { label: "Sprinkler Systems", icon: "cloud-rain", placeholder: 'e.g., "What are the AS2118 testing requirements?"' },
+    { label: "Portables (FE + FB + FHR)", icon: "shield", placeholder: 'e.g., "How often do extinguishers need servicing?"', description: "Fire extinguishers, fire blankets & fire hose reels" },
   ];
 
-  const handleTopicSelect = useCallback(async (topic: string) => {
+  const [topicPlaceholder, setTopicPlaceholder] = useState<string | undefined>(undefined);
+
+  const handleTopicSelect = useCallback(async (topic: string, placeholder?: string) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     
-    const aiPrompt = `So you have a question about ${topic} — what's your enquiry?`;
-    
-    setMessages([{
-      id: Date.now(),
-      role: "assistant",
-      content: aiPrompt,
-    }]);
+    setPrefillText(`${topic}: `);
+    setTopicPlaceholder(placeholder);
   }, []);
 
   const renderHeader = () => (
@@ -568,7 +662,7 @@ export default function ChatScreen() {
               {FIRE_TOPICS.map((topic, index) => (
                 <Pressable
                   key={index}
-                  onPress={() => handleTopicSelect(topic.label)}
+                  onPress={() => handleTopicSelect(topic.label, topic.placeholder)}
                   style={({ pressed }) => [
                     styles.quickPromptChip,
                     { backgroundColor: isDark ? theme.backgroundSecondary : theme.backgroundDefault },
@@ -617,7 +711,7 @@ export default function ChatScreen() {
         <View style={[styles.loadingContainer, { backgroundColor: theme.assistantBubble }]}>
           <LoadingSquares size="small" />
           <ThemedText style={[styles.loadingText, { color: theme.textSecondary }]}>
-            {activeCommand ? `Processing ${activeCommand.name}...` : "Thinking..."}
+            {activeCommand ? `Processing ${activeCommand.name}...` : "FyreOne is thinking..."}
           </ThemedText>
         </View>
       ) : null}
@@ -675,47 +769,65 @@ export default function ChatScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.md, backgroundColor: theme.backgroundRoot, borderBottomColor: isDark ? theme.border : "rgba(0,0,0,0.05)" }]}>
-        <View style={styles.headerContent}>
-          <Pressable
-            onPress={startNewConversation}
-            style={({ pressed }) => [styles.headerButton, { backgroundColor: theme.backgroundSecondary }, pressed && styles.pressed]}
-            accessibilityLabel="Start new conversation"
-            accessibilityRole="button"
-          >
-            <Feather name="plus" size={20} color={theme.textSecondary} />
-          </Pressable>
-          <FireOneLogo size="medium" showSubtitle={false} variant="text" />
-          <View style={styles.headerRight}>
-            <Pressable
-              onPress={() => navigation.navigate("Search")}
-              style={({ pressed }) => [styles.headerButton, { backgroundColor: theme.backgroundSecondary }, pressed && styles.pressed]}
-              accessibilityLabel="Search conversations"
-              accessibilityRole="button"
-            >
-              <Feather name="search" size={20} color={theme.textSecondary} />
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (Platform.OS !== "web") {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }
-                navigation.navigate("Settings");
-              }}
-              style={({ pressed }) => [styles.headerButton, { backgroundColor: theme.backgroundSecondary }, pressed && styles.pressed]}
-              accessibilityLabel="Open settings"
-              accessibilityRole="button"
-            >
-              <Feather name="settings" size={20} color={theme.textSecondary} />
-            </Pressable>
+    <View style={{ flex: 1, flexDirection: "row" }}>
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onNewChat={startNewConversation}
+        onSelectConversation={loadConversation}
+        onOpenSearch={() => navigation.navigate("Search")}
+        onOpenSettings={() => navigation.navigate("Settings")}
+        onOpenNotebooks={() => navigation.navigate("Notebooks")}
+        currentConversationId={currentConversationId}
+      />
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      >
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.md, backgroundColor: theme.backgroundRoot, borderBottomColor: isDark ? theme.border : "rgba(0,0,0,0.05)" }]}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  setSidebarOpen(!sidebarOpen);
+                }}
+                style={({ pressed }) => [styles.headerButton, { backgroundColor: theme.backgroundSecondary }, pressed && styles.pressed]}
+                accessibilityLabel="Open menu"
+                accessibilityRole="button"
+              >
+                <Feather name="menu" size={20} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+            <FyreOneWordmark height={28} isDark={isDark} />
+            <View style={styles.headerRight}>
+              <Pressable
+                onPress={() => navigation.navigate("Search")}
+                style={({ pressed }) => [styles.headerButton, { backgroundColor: theme.backgroundSecondary }, pressed && styles.pressed]}
+                accessibilityLabel="Search conversations"
+                accessibilityRole="button"
+              >
+                <Feather name="search" size={20} color={theme.textSecondary} />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  navigation.navigate("Settings");
+                }}
+                style={({ pressed }) => [styles.headerButton, { backgroundColor: theme.backgroundSecondary }, pressed && styles.pressed]}
+                accessibilityLabel="Open settings"
+                accessibilityRole="button"
+              >
+                <Feather name="settings" size={20} color={theme.textSecondary} />
+              </Pressable>
+            </View>
           </View>
         </View>
-      </View>
 
       <FlatList
         ref={flatListRef}
@@ -736,7 +848,18 @@ export default function ChatScreen() {
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         removeClippedSubviews={false}
+        refreshControl={
+          currentConversationId ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={FireOneColors.orange}
+              colors={[FireOneColors.orange]}
+            />
+          ) : undefined
+        }
       />
 
       <View style={{ paddingBottom: insets.bottom }}>
@@ -747,6 +870,7 @@ export default function ChatScreen() {
           showVoiceButton={true}
           prefillText={prefillText}
           onPrefillConsumed={handlePrefillConsumed}
+          placeholder={topicPlaceholder || "Ask a fire safety compliance question..."}
         />
       </View>
 
@@ -756,8 +880,16 @@ export default function ChatScreen() {
         onTranscript={handleVoiceTranscript}
       />
 
+      <SaveToNotebookModal
+        visible={saveToNotebookMessage !== null}
+        onClose={() => setSaveToNotebookMessage(null)}
+        message={saveToNotebookMessage}
+        conversationId={currentConversationId}
+      />
+
       {renderHelpModal()}
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -805,6 +937,12 @@ const styles = StyleSheet.create({
   },
   listFooter: {
     paddingBottom: Spacing.md,
+  },
+  animationContainer: {
+    width: "100%",
+    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
   },
   welcomeContainer: {
     alignItems: "center",

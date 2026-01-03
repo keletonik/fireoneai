@@ -17,7 +17,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, FireOneColors, withOpacity } from "@/constants/theme";
 import { Feather } from "@expo/vector-icons";
 import { apiRequest } from "@/lib/query-client";
-import { FireOneLogo } from "@/components/FireOneLogo";
+import { FyreOneWordmark } from "@/components/FyreOneWordmark";
 
 interface InputFieldProps {
   label: string;
@@ -87,7 +87,7 @@ interface AuthScreenProps {
 }
 
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [isLogin, setIsLogin] = useState(true);
   const [fullName, setFullName] = useState("");
@@ -182,7 +182,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.logoSection}>
-          <FireOneLogo size="large" showSubtitle variant="text" />
+          <FyreOneWordmark height={40} isDark={isDark} />
         </View>
 
         <View style={[styles.formCard, { backgroundColor: theme.assistantBubble, borderColor: theme.border }]}>
