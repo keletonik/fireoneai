@@ -2,10 +2,21 @@ import type { Express, Request, Response } from "express";
 import OpenAI, { toFile } from "openai";
 import { chatStorage } from "./storage";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+let openai: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey || apiKey.startsWith("sk-your")) {
+      throw new Error("OpenAI API key not configured. Set AI_INTEGRATIONS_OPENAI_API_KEY in .env");
+    }
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  }
+  return openai;
+}
 
 const FIREONE_SYSTEM_PROMPT = `You are FireOne AI, an expert NSW fire safety compliance assistant designed for auditors and fire safety professionals.
 
@@ -61,11 +72,48 @@ Remember: Your answers may be used in formal compliance documentation. Accuracy 
 export function registerChatRoutes(app: Express): void {
   app.get("/api/conversations", async (req: Request, res: Response) => {
     try {
-      const conversations = await chatStorage.getAllConversations();
+      const userId = req.query.userId as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const starred = req.query.starred === "true";
+
+      const conversations = await chatStorage.getAllConversations(userId, limit, starred);
       res.json(conversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
       res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
+  app.get("/api/conversations/recent", async (req: Request, res: Response) => {
+    try {
+      const userId = req.query.userId as string;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      if (!userId) {
+        return res.status(400).json({ error: "userId required" });
+      }
+
+      const conversations = await chatStorage.getAllConversations(userId, limit);
+      res.json(conversations);
+    } catch (error) {
+      console.error("Error fetching recent conversations:", error);
+      res.status(500).json({ error: "Failed to fetch recent conversations" });
+    }
+  });
+
+  app.get("/api/conversations/starred", async (req: Request, res: Response) => {
+    try {
+      const userId = req.query.userId as string;
+
+      if (!userId) {
+        return res.status(400).json({ error: "userId required" });
+      }
+
+      const conversations = await chatStorage.getAllConversations(userId, 100, true);
+      res.json(conversations);
+    } catch (error) {
+      console.error("Error fetching starred conversations:", error);
+      res.status(500).json({ error: "Failed to fetch starred conversations" });
     }
   });
 
@@ -89,12 +137,12 @@ export function registerChatRoutes(app: Express): void {
 
   app.post("/api/conversations", async (req: Request, res: Response) => {
     try {
-      const { title } = req.body;
+      const { title, userId } = req.body;
       const sanitizedTitle = (title || "").trim() || "New Chat";
       if (sanitizedTitle.length > 200) {
         return res.status(400).json({ error: "Title too long" });
       }
-      const conversation = await chatStorage.createConversation(sanitizedTitle);
+      const conversation = await chatStorage.createConversation(sanitizedTitle, userId);
       res.status(201).json(conversation);
     } catch (error) {
       console.error("Error creating conversation:", error);
@@ -113,6 +161,77 @@ export function registerChatRoutes(app: Express): void {
     } catch (error) {
       console.error("Error deleting conversation:", error);
       res.status(500).json({ error: "Failed to delete conversation" });
+    }
+  });
+
+  app.put("/api/conversations/:id/star", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
+      }
+      const { isStarred } = req.body;
+      const updated = await chatStorage.updateConversation(id, { isStarred: isStarred ?? true });
+      if (!updated) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating star status:", error);
+      res.status(500).json({ error: "Failed to update star status" });
+    }
+  });
+
+  app.put("/api/conversations/:id/rename", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
+      }
+      const { title } = req.body;
+      if (!title) {
+        return res.status(400).json({ error: "title required" });
+      }
+      const updated = await chatStorage.updateConversation(id, { title });
+      if (!updated) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error renaming conversation:", error);
+      res.status(500).json({ error: "Failed to rename conversation" });
+    }
+  });
+
+  app.get("/api/conversations/:id/export", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
+      }
+      const conversation = await chatStorage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      const msgs = await chatStorage.getMessagesByConversation(id);
+
+      const dateStr = new Date().toISOString().split("T")[0];
+      const safeTitle = conversation.title.replace(/[^a-zA-Z0-9-_]/g, "-").toLowerCase();
+      const filename = `fyreone-${safeTitle}-${dateStr}.md`;
+
+      let markdown = `# ${conversation.title}\n\n`;
+      markdown += `*Exported from FyreOne AI on ${new Date().toLocaleDateString("en-AU")}*\n\n`;
+      markdown += `---\n\n`;
+
+      for (const msg of msgs) {
+        const role = msg.role === "user" ? "**User:**" : "**Assistant:**";
+        markdown += `${role}\n\n${msg.content}\n\n---\n\n`;
+      }
+
+      res.json({ markdown, filename, conversation, messages: msgs });
+    } catch (error) {
+      console.error("Error exporting conversation:", error);
+      res.status(500).json({ error: "Failed to export conversation" });
     }
   });
 
@@ -230,7 +349,7 @@ export function registerChatRoutes(app: Express): void {
           }
         }
 
-        const completion = await openai.chat.completions.create({
+        const completion = await getOpenAI().chat.completions.create({
           model: "gpt-4o",
           messages: chatMessages,
           stream: false,
@@ -338,7 +457,7 @@ ${customInstructions.trim()}
         }
       }
 
-      const stream = await openai.chat.completions.create({
+      const stream = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         messages: chatMessages,
         stream: true,
@@ -485,7 +604,7 @@ ${customInstructions.trim()}
       
       const audioFile = await toFile(audioBuffer, `recording.${extension}`);
 
-      const transcription = await openai.audio.transcriptions.create({
+      const transcription = await getOpenAI().audio.transcriptions.create({
         file: audioFile,
         model: "whisper-1",
         language: "en",

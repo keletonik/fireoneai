@@ -107,6 +107,11 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/logout", async (req, res) => {
+  // stateless auth - client just needs to clear their token
+  res.json({ message: "Logged out successfully" });
+});
+
 router.get("/me", async (req, res) => {
   const userId = req.headers["x-user-id"];
   

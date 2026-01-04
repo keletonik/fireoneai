@@ -1,12 +1,13 @@
 import { db } from "../../db";
 import { conversations, messages, quickTemplates } from "@shared/schema";
-import { eq, desc, ilike, or, sql } from "drizzle-orm";
+import { eq, desc, ilike, or, sql, and } from "drizzle-orm";
 
 export interface IChatStorage {
   getConversation(id: number): Promise<typeof conversations.$inferSelect | undefined>;
-  getAllConversations(): Promise<(typeof conversations.$inferSelect)[]>;
+  getAllConversations(userId?: string, limit?: number, starred?: boolean): Promise<(typeof conversations.$inferSelect)[]>;
   searchConversations(query: string): Promise<any[]>;
-  createConversation(title: string): Promise<typeof conversations.$inferSelect>;
+  createConversation(title: string, userId?: string): Promise<typeof conversations.$inferSelect>;
+  updateConversation(id: number, data: { title?: string; isStarred?: boolean }): Promise<typeof conversations.$inferSelect | undefined>;
   deleteConversation(id: number): Promise<void>;
   getMessagesByConversation(conversationId: number): Promise<(typeof messages.$inferSelect)[]>;
   createMessage(conversationId: number, role: string, content: string): Promise<typeof messages.$inferSelect>;
@@ -24,13 +25,45 @@ export const chatStorage: IChatStorage = {
     return conversation;
   },
 
-  async getAllConversations() {
-    return db.select().from(conversations).orderBy(desc(conversations.createdAt));
+  async getAllConversations(userId?: string, limit = 50, starred = false) {
+    const conditions = [];
+    if (userId) {
+      conditions.push(eq(conversations.userId, userId));
+    }
+    if (starred) {
+      conditions.push(eq(conversations.isStarred, true));
+    }
+
+    const query = db
+      .select()
+      .from(conversations)
+      .orderBy(desc(conversations.lastMessageAt));
+
+    if (conditions.length > 0) {
+      return query.where(and(...conditions)).limit(limit);
+    }
+    return query.limit(limit);
   },
 
-  async createConversation(title: string) {
-    const [conversation] = await db.insert(conversations).values({ title }).returning();
+  async createConversation(title: string, userId?: string) {
+    const [conversation] = await db
+      .insert(conversations)
+      .values({ title, userId: userId || null })
+      .returning();
     return conversation;
+  },
+
+  async updateConversation(id: number, data: { title?: string; isStarred?: boolean }) {
+    const updateData: Record<string, unknown> = {};
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.isStarred !== undefined) updateData.isStarred = data.isStarred;
+
+    const [updated] = await db
+      .update(conversations)
+      .set(updateData)
+      .where(eq(conversations.id, id))
+      .returning();
+    return updated;
   },
 
   async deleteConversation(id: number) {

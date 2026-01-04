@@ -25,6 +25,29 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/:id", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: "Invalid project ID" });
+    }
+
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId));
+
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    res.json(project);
+  } catch (error) {
+    console.error("Error fetching project:", error);
+    res.status(500).json({ error: "Failed to fetch project" });
+  }
+});
+
 router.post("/", async (req, res) => {
   try {
     const { userId, name, description, color, icon } = req.body;

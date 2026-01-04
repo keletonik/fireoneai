@@ -289,7 +289,7 @@ export function InputComposer({
             data={matchingCommands}
             renderItem={renderCommandItem}
             keyExtractor={(item) => item.id}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
             style={styles.commandList}
           />

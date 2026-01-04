@@ -1,15 +1,26 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+let openai: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey || apiKey.startsWith("sk-your")) {
+      throw new Error("OpenAI API key not configured");
+    }
+    openai = new OpenAI({
+      apiKey,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  }
+  return openai;
+}
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const MAX_TOKENS_PER_CHUNK = 8000;
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
+  const response = await getOpenAI().embeddings.create({
     model: EMBEDDING_MODEL,
     input: text.slice(0, MAX_TOKENS_PER_CHUNK * 4),
   });
@@ -18,7 +29,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   const truncatedTexts = texts.map(t => t.slice(0, MAX_TOKENS_PER_CHUNK * 4));
-  const response = await openai.embeddings.create({
+  const response = await getOpenAI().embeddings.create({
     model: EMBEDDING_MODEL,
     input: truncatedTexts,
   });

@@ -51,6 +51,7 @@ const STORAGE_KEYS = {
   USER_NAME: "user_name",
   USER_AVATAR: "user_avatar_uri",
   UPLOADED_FILES: "@fyreone_uploaded_files",
+  USER_ID: "@fyreone_user_id",
 };
 
 interface UploadedFile {
@@ -88,6 +89,7 @@ export default function ChatScreen() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [saveToNotebookMessage, setSaveToNotebookMessage] = useState<Message | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const loadDocumentContent = async (file: UploadedFile): Promise<UploadedFile> => {
     try {
@@ -155,6 +157,7 @@ export default function ChatScreen() {
     checkFirstLogin();
     loadUserProfile();
     loadUploadedDocuments();
+    AsyncStorage.getItem(STORAGE_KEYS.USER_ID).then((id) => setUserId(id));
   }, [loadUserProfile, loadUploadedDocuments]);
 
   useFocusEffect(
@@ -180,7 +183,7 @@ export default function ChatScreen() {
 
   const createConversationMutation = useMutation({
     mutationFn: async (title: string) => {
-      const res = await apiRequest("POST", "/api/conversations", { title });
+      const res = await apiRequest("POST", "/api/conversations", { title, userId });
       return res.json();
     },
     onSuccess: (data) => {
@@ -473,10 +476,10 @@ export default function ChatScreen() {
       const response = await fetch(url.toString(), { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           rating: type === "positive" ? 1 : -1,
           feedbackType: "rating",
-          userId: null
+          userId
         })
       });
       if (!response.ok) {
@@ -488,7 +491,7 @@ export default function ChatScreen() {
       console.error("Error submitting feedback:", error);
       return false;
     }
-  }, [isPersistedMessageId]);
+  }, [isPersistedMessageId, userId]);
 
   const handleExportPDF = useCallback(async () => {
     if (messages.length === 0) {
@@ -847,8 +850,8 @@ export default function ChatScreen() {
           }
         }}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
         removeClippedSubviews={false}
         refreshControl={
           currentConversationId ? (
