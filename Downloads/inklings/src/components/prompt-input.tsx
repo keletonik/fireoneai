@@ -2,7 +2,7 @@
 
 import { useState, FormEvent, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PromptInputProps {
@@ -19,6 +19,7 @@ export function PromptInput({
   onChange,
 }: PromptInputProps) {
   const [localValue, setLocalValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -60,56 +61,90 @@ export function PromptInput({
       onSubmit={handleSubmit}
       className="w-full max-w-2xl mx-auto"
     >
-      <div
-        className={cn(
-          "relative flex items-end gap-3",
-          "bg-bg-card border-2 border-border rounded-2xl",
-          "p-3 shadow-xl",
-          "focus-within:border-rainbow-pink/50",
-          "transition-colors duration-200"
-        )}
-      >
-        <textarea
-          ref={textareaRef}
-          value={localValue}
-          onChange={(e) => handleChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="What would you like to color today? ✨"
-          disabled={isLoading}
-          rows={1}
+      <div className="relative group">
+        {/* Animated gradient border */}
+        <div 
           className={cn(
-            "flex-1 bg-transparent resize-none",
-            "text-text-primary placeholder:text-text-muted",
-            "focus:outline-none",
-            "min-h-[44px] max-h-[120px]",
-            "py-2 px-1 text-lg"
+            "absolute -inset-[2px] rounded-2xl transition-opacity duration-500",
+            "bg-gradient-to-r from-rainbow-cyan via-rainbow-pink to-rainbow-purple",
+            isFocused ? "opacity-100" : "opacity-40"
           )}
+          style={{
+            backgroundSize: "200% 200%",
+            animation: "gradient-shift 3s ease infinite",
+          }}
         />
-        <button
-          type="submit"
-          disabled={!localValue.trim() || isLoading}
-          className={cn(
-            "shrink-0 w-12 h-12 rounded-xl",
-            "flex items-center justify-center",
-            "bg-gradient-to-r from-rainbow-pink to-rainbow-purple",
-            "text-white font-bold",
-            "hover:opacity-90 hover:scale-105",
-            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
-            "transition-all duration-200",
-            "focus:outline-none focus:ring-2 focus:ring-rainbow-pink/50",
-            "shadow-lg"
-          )}
-        >
-          {isLoading ? (
-            <Loader2 className="w-6 h-6 animate-spin" />
-          ) : (
-            <Sparkles className="w-6 h-6" />
-          )}
-        </button>
+        
+        {/* Inner container */}
+        <div className="relative bg-[#1e1f32] rounded-2xl p-4 shadow-2xl">
+          <div className="flex items-end gap-3">
+            {/* Wand icon */}
+            <div className="hidden sm:flex shrink-0 w-10 h-10 items-center justify-center text-white/30">
+              <Wand2 className="w-5 h-5" />
+            </div>
+            
+            <textarea
+              ref={textareaRef}
+              value={localValue}
+              onChange={(e) => handleChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder="Describe your perfect coloring page..."
+              disabled={isLoading}
+              rows={1}
+              className={cn(
+                "flex-1 bg-transparent resize-none",
+                "text-white placeholder:text-white/30",
+                "focus:outline-none",
+                "min-h-[48px] max-h-[120px]",
+                "py-2 text-lg leading-relaxed"
+              )}
+            />
+            
+            {/* Submit button with animated gradient */}
+            <motion.button
+              type="submit"
+              disabled={!localValue.trim() || isLoading}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className={cn(
+                "shrink-0 w-14 h-14 rounded-xl",
+                "flex items-center justify-center",
+                "bg-gradient-to-br from-rainbow-pink via-rainbow-purple to-rainbow-cyan",
+                "text-white font-bold",
+                "disabled:opacity-30 disabled:cursor-not-allowed",
+                "transition-all duration-300",
+                "focus:outline-none",
+                "shadow-lg shadow-rainbow-pink/25"
+              )}
+              style={{
+                backgroundSize: "200% 200%",
+                animation: isLoading ? "none" : "gradient-shift 3s ease infinite",
+              }}
+            >
+              {isLoading ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <Sparkles className="w-6 h-6" />
+              )}
+            </motion.button>
+          </div>
+        </div>
       </div>
-      <p className="text-center text-text-muted text-sm mt-3">
-        Press Enter to create your coloring page!
+      
+      <p className="text-center text-white/30 text-sm mt-4 font-medium">
+        Press Enter or click the sparkle button to create magic ✨
       </p>
+      
+      {/* Gradient shift animation */}
+      <style jsx>{`
+        @keyframes gradient-shift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
     </motion.form>
   );
 }
